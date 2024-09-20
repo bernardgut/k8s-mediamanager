@@ -1,0 +1,286 @@
+{{ if .Values.lidarr.enabled }}
+{{- with .Values.lidarr.volume }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  {{ with .annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{ with .labels }}
+  labels:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  storageClassName: {{ .storageClassName }}
+  {{ with .selector }}
+  selector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+---
+### CONFIGMAP
+## INIT-CONTAINER
+---
+apiVersion: v1
+data:
+  config.xml: |
+    <Config>
+      <UrlBase>{{ .Values.lidarr.ingress.path }}</UrlBase>
+      <Port>{{ .Values.lidarr.container.port }}</Port>
+      <ApiKey>{{ .Values.lidarr.apiKey }}</ApiKey>
+      <InstanceName>{{ .Values.lidarr.instanceName }}</InstanceName>
+    </Config>
+  init-lidarr.sh: |
+    #!/bin/bash
+    echo "### Initializing config ###"
+    if [ ! -f /lidarr-config/config.xml ]; then
+      cp -n /init-lidarr/config.xml /lidarr-config/config.xml
+      echo "### No configuration found, intialized with default settings ###"
+    fi
+kind: ConfigMap
+metadata:
+  name: init-lidarr-cm
+---
+## APPLICATION
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lidarr-config
+data:
+  PGID: "{{ .Values.general.pgid }}"
+  PUID: "{{ .Values.general.puid }}"
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
+        app: lidarr
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.general.puid }}
+        runAsGroup: {{ .Values.general.pgid }}
+        fsGroup: {{ .Values.general.pgid }}
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: config-lidarr
+          image: docker.io/ubuntu:groovy
+          command: ["/init-lidarr/init-lidarr.sh"]
+          volumeMounts:
+            - mountPath: /init-lidarr
+              name: init-files-lidarr
+            - name: config
+              mountPath: /lidarr-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        {{- if .Values.lidarr.exportarr.enabled }}
+        - name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.lidarr.exportarr.image }}:{{ .Values.lidarr.exportarr.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - lidarr
+          env:
+            - name: PORT
+              value: {{ .Values.lidarr.exportarr.port | quote }}
+            - name: URL
+              value: "http://localhost:{{ .Values.lidarr.container.port }}{{ .Values.lidarr.exportarr.urlBase }}"
+            - name: APIKEY
+              {{- if .Values.lidarr.apiKey }}
+              value: {{ .Values.lidarr.apiKey }}
+              {{- end }}
+              {{- if .Values.lidarr.apiSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.lidarr.apiSecret }}
+                  key: api-key
+              {{- end }}
+          ports:
+            - name: monitoring
+              containerPort: {{ .Values.lidarr.exportarr.port }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+        {{- end }}
+        - name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
+          securityContext:
+            runAsUser: {{ .Values.general.puid }}
+            runAsGroup: {{ .Values.general.pgid }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: lidarr-config
+          image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag | default .Values.general.image_tag }}"
+          imagePullPolicy: Always
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.lidarr.container.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          ports:
+            - name: lidarr-port
+              containerPort: {{ .Values.lidarr.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: "/downloads"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
+            - name: media
+              mountPath: "/music"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.music }}"
+          {{- if .Values.lidarr.extraVolumes }}
+            {{- toYaml .Values.lidarr.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.lidarr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.lidarr.volume.name }}
+        - name: init-files-lidarr
+          configMap:
+            defaultMode: 493
+            name: init-lidarr-cm
+        {{- if .Values.lidarr.extraVolumes }}
+          {{- toYaml .Values.lidarr.extraVolumes | nindent 8}}
+        {{- end }}
+      {{- with .Values.general.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+### SERVICES
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
+  labels:
+    app: lidarr
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
+  type: {{ .Values.plex.service.type }}
+  type: {{ .Values.lidarr.service.type }}
+  ports:
+    - port: {{ .Values.lidarr.service.port }}
+      targetPort: {{ .Values.lidarr.container.port }}
+      protocol: TCP
+{{ if eq .Values.lidarr.service.type "NodePort" }}
+      nodePort: {{ .Values.lidarr.service.nodePort }}
+{{ end }}
+      name: lidarr-port
+    {{- if .Values.sonarr.exportarr.enabled }}
+    - port: {{ .Values.sonarr.exportarr.port }}
+      targetPort: {{ .Values.sonarr.exportarr.port }}
+      protocol: TCP
+      name: monitoring
+    {{- end }}
+  selector:
+    app: lidarr
+
+---
+### INGRESS ###
+{{ if .Values.lidarr.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: lidarr
+  {{- with .Values.lidarr.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.lidarr.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.general.ingress_host | quote }}
+      secretName: {{ .Values.general.ingress_host }}-tls
+{{ end }}
+  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  rules:
+    - host: {{ .Values.general.ingress_host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.lidarr.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
+                port:
+                  number: {{ .Values.lidarr.service.port }}
+{{ end }}
+---
+{{ if .Values.lidarr.exportarr.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
+  labels:
+    app: lidarr
+spec:
+  selector:
+    matchLabels:
+      app: lidarr
+  endpoints:
+    - port: monitoring
+      scheme: http
+      path: /metrics
+{{ end }}
+{{ end }}

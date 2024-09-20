@@ -51,6 +51,8 @@ for searching and retrieving TV Series, organizing them, schedule notifications 
 
 - [Radarr](https://radarr.video/ "Radarr") - The same a **Sonarr**, but for movies!
 
+- [Lidarr](https://github.com/Lidarr/Lidarr "Lidarr") - Looks and smells like Sonarr but made for music.
+
 - [Prowlarr](https://github.com/Prowlarr/Prowlarr "Prowlarr") - An indexer manager/proxy built on the popular \*arr .net/reactjs base stack to integrate with your various PVR apps. Prowlarr supports management of both Torrent Trackers and Usenet Indexers.
 
 - [Transmission](https://transmissionbt.com/ "Transmission") - A fast, easy and reliable torrent client.
@@ -111,7 +113,7 @@ plex:
       enabled: true
 
   volume:
-    storageClassName: "sa" # Used for config, put whatever ReadWriteOnce SA you have here
+    storageClassName: "sa" # Used for config, put whatever ReadWriteOnce SC you have here
 
 prowlarr:
   apiKey: "CHANGEME-generate-a-random-32char-hex-key" # Change this prior to deploying
@@ -122,7 +124,7 @@ prowlarr:
     tls:
       enabled: true
   volume:
-    storageClassName: "sa" # Used for config, put whatever ReadWriteOnce SA you have here
+    storageClassName: "sa" # Used for config, put whatever ReadWriteOnce SC you have here
 
 radarr:
   apiKey: "CHANGEME-generate-a-random-32char-hex-key" # Change this prior to deploying
@@ -133,7 +135,7 @@ radarr:
     tls:
       enabled: true
   volume:
-    storageClassName: "sa" # Used for config put whatever ReadWriteOnce SA you have here
+    storageClassName: "sa" # Used for config put whatever ReadWriteOnce SC you have here
 
 sonarr:
   apiKey: "CHANGEME-generate-a-random-32char-hex-key" # Change this prior to deploying
@@ -144,7 +146,18 @@ sonarr:
     tls:
       enabled: true
   volume:
-    storageClassName: "sa" # Used for config put whatever ReadWriteOnce SA you have here
+    storageClassName: "sa" # Used for config put whatever ReadWriteOnce SC you have here
+
+lidarr:
+  apiKey: "CHANGEME-generate-a-random-32char-hex-key" # Change this prior to deploying
+  ingress:
+    annotations:
+      ingress.cilium.io/loadbalancer-mode: shared
+      kubernetes.io/tls-acme: "true"
+    tls:
+      enabled: true
+  volume:
+    storageClassName: "sa" # Used for config put whatever ReadWriteOnce SC you have here
 
 transmission:
   ingress:
@@ -200,8 +213,8 @@ be added to your Graphana instance. Feel free to edit and submit Pull Requests o
 
 ## TODO
 - [X] Finish adding support for serviceAccount
-- [ ] Add metrics for Plex
+- [X] Add support for lidarr
+- [ ] Add metrics for Plex (Tautulli)
 - [ ] Add metrics for transmission
-- [ ] Add support for lidarr
 - [ ] Add support for sabnzbz
 

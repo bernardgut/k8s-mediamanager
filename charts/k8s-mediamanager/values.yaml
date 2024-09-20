@@ -7,7 +7,6 @@ serviceAccount:
   create: true
   # Alllow kubelet to automatically mount the ServiceAccount's Kubernetes API credentials?
   automount: false
-  # Annotations to add to the service account
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
@@ -61,8 +60,6 @@ plex:
     type: ClusterIP # ClusterIP, NodePort, LoadBalancer
     port: 32400
     nodePort: # Only required if service type is NodePort
-    # Defines an additional LB service, requires cloud provider service or MetalLB
-    extraLBService: false
   ingress:
     enabled: true
     annotations: {}
@@ -98,7 +95,6 @@ prowlarr:
     type: ClusterIP # ClusterIP, NodePort, LoadBalancer
     port: 9696
     nodePort: # Only required if service type is NodePort
-    extraLBService: false
   ingress:
     enabled: true
     annotations: {}
@@ -144,8 +140,6 @@ radarr:
     type: ClusterIP # ClusterIP, NodePort, LoadBalancer
     port: 7878
     nodePort: # Only required if service type is NodePort
-    # Defines an additional LB service, requires cloud provider service or MetalLB
-    extraLBService: false
   ingress:
     enabled: true
     annotations: {}
@@ -189,8 +183,6 @@ sonarr:
     type: ClusterIP # ClusterIP, NodePort, LoadBalancer
     port: 8989
     nodePort: # Only required if service type is NodePort
-    # Defines an additional LB service, requires cloud provider service or MetalLB
-    extraLBService: false
   ingress:
     enabled: true
     annotations: {}
@@ -220,6 +212,49 @@ sonarr:
     port: 9090
     urlBase: /sonarr
 
+lidarr:
+  enabled: true
+  # hexadecimal api key for lidarr. Change this value before deploying to production
+  apiKey: "CHANGEME-generate-a-random-32char-hex-key"
+  instanceName: Lidarr
+  container:
+    image: ghcr.io/crutonjohn/lidarr-plugins
+    tag: 2.6.0.4349
+    nodeSelector: {}
+    port: 8686
+  service:
+    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+    port: 8686
+    nodePort: # Only required if service type is NodePort
+  ingress:
+    enabled: true
+    annotations: {}
+    path: /lidarr
+    tls:
+      enabled: false
+      secretName: ""
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "150m"
+      memory: "256Mi"
+  volume:
+    name: lidarr-config
+    accessModes: "ReadWriteOnce"
+    storage: "1Gi"
+    storageClassName: ""
+  extraVolumes: {}
+  extraVolumeMounts: {}
+  exportarr:
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.0.1
+    enabled: true
+    serviceMonitor: true
+    port: 9090
+    urlBase: /lidarr
+
 transmission:
   enabled: true
   container:
@@ -234,15 +269,11 @@ transmission:
       type: ClusterIP   # ClusterIP, NodePort, LoadBalancer
       port: 9091
       nodePort:  # Only required if service type is NodePort
-      # Defines an additional LB service, requires cloud provider service or MetalLB
-      extraLBService: false
     peer:
       type: LoadBalancer   # ClusterIP, NodePort, LoadBalancer
       port: 11413       # Port for the peer service to listen on. Make sure this port is open on your cluster firewall/ingress
       nodePort:   # Only required if service type is NodePort
       nodePortUDP:  # Only required if service type is NodePort
-      # Defines an additional LB service, requires cloud provider service or MetalLB
-      extraLBService: false
   ingress:
     enabled: true
     annotations: {}
