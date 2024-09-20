@@ -1,0 +1,2 @@
+k8s-mediamanager successfully installed!
+1. Get the application URL by running these commands

@@ -1,0 +1,225 @@
+{{- if .Values.transmission.enabled -}}
+{{- with .Values.transmission.volume }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  {{ with .annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{ with .labels }}
+  labels:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  storageClassName: {{ .storageClassName }}
+  {{ with .selector }}
+  selector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+---
+## APPLICATION
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: transmission-config
+data:
+  PGID: "{{ .Values.general.pgid }}"
+  PUID: "{{ .Values.general.puid }}"
+  TRANSMISSION__DOWNLOAD_DIR: "/{{ .Values.general.sharedStorage.subPaths.downloads }}/{{ .Values.general.sharedStorage.subPaths.transmission }}/complete"
+  TRANSMISSION__INCOMPLETE_DIR: "/{{ .Values.general.sharedStorage.subPaths.downloads }}/{{ .Values.general.sharedStorage.subPaths.transmission }}/incomplete"
+  TRANSMISSION__PEER_PORT: "{{ .Values.transmission.service.peer.port }}"
+  TRANSMISSION__RPC_AUTHENTICATION_REQUIRED: "{{ .Values.transmission.config.auth.enabled }}"
+  TRANSMISSION__RPC_ENABLED: "true"
+  TRANSMISSION__RPC_BIND_ADDRESS: "::"
+  TRANSMISSION__RPC_PORT: "{{ .Values.transmission.container.port.rpc }}"
+  TRANSMISSION__RPC_URL: "{{ .Values.transmission.ingress.path }}/"
+  TRANSMISSION__RPC_USERNAME: "{{ .Values.transmission.config.auth.username }}"
+  TRANSMISSION__RPC_PASSWORD: "{{ .Values.transmission.config.auth.password }}"
+  TRANSMISSION__UTP_ENABLED: "false"
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
+        app: transmission
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.general.puid }}
+        runAsGroup: {{ .Values.general.pgid }}
+        fsGroup: {{ .Values.general.pgid }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: transmission-config
+          image: "{{ .Values.transmission.container.image }}:{{ .Values.transmission.container.tag | default .Values.general.image_tag }}"
+          imagePullPolicy: Always
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.transmission.container.port.rpc }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.transmission.container.port.rpc }}
+          ports:
+            - name: trans-port
+              containerPort: {{ .Values.transmission.container.port.rpc }}
+              protocol: TCP
+            - name: trans-peer-tcp
+              containerPort: {{ .Values.transmission.container.port.peer }}
+              protocol: TCP
+            - name: trans-peer-udp
+              containerPort: {{ .Values.transmission.container.port.peer }}
+              protocol: UDP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: "/downloads"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
+          {{- if .Values.transmission.extraVolumes }}
+            {{- toYaml .Values.transmission.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.transmission.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.transmission.volume.name }}
+        - name: init-files-transmission
+          configMap:
+            defaultMode: 493
+            name: init-transmission-cm
+        {{- if .Values.transmission.extraVolumes }}
+          {{- toYaml .Values.transmission.extraVolumes | nindent 8}}
+        {{- end }}
+      {{- with .Values.general.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+### SERVICES
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: transmission
+spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
+  type: {{ .Values.transmission.service.rpc.type }}
+  ports:
+    - port: {{ .Values.transmission.service.rpc.port }}
+      targetPort: {{ .Values.transmission.container.port.rpc }}
+      protocol: TCP
+      name: trans-port
+{{ if eq .Values.transmission.service.rpc.type "NodePort" }}
+      nodePort: {{ .Values.transmission.service.rpc.nodePort }}
+{{ end }}
+  selector:
+    app: transmission
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission-peer
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: transmission
+spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
+  type: {{ .Values.transmission.service.peer.type }}
+  ports:
+    - port: {{ .Values.transmission.service.peer.port }}
+      targetPort: {{ .Values.transmission.container.port.peer }}
+      protocol: TCP
+      name: trans-peer-tcp
+{{ if eq .Values.transmission.service.peer.type "NodePort" }}
+      nodePort: {{ .Values.transmission.service.peer.nodePort }}
+{{ end }}
+    - port: {{ .Values.transmission.service.peer.port }}
+      targetPort: {{ .Values.transmission.container.port.peer }}
+      protocol: UDP
+      name: trans-peer-udp
+{{ if eq .Values.transmission.service.peer.type "NodePort" }}
+      nodePort: {{ .Values.transmission.service.peer.nodePortUDP }}
+{{ end }}
+  selector:
+    app: transmission
+---
+### INGRESS
+{{ if .Values.transmission.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: transmission
+  {{- with .Values.transmission.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.transmission.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.general.ingress_host | quote }}
+      secretName: {{ .Values.general.ingress_host }}-tls
+{{ end }}
+  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  rules:
+    - host: {{ .Values.general.ingress_host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.transmission.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+                port:
+                  number: {{ .Values.transmission.service.rpc.port }}
+{{ end }}
+{{ end }}

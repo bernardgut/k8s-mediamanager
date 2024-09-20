@@ -1,0 +1,180 @@
+{{ if .Values.plex.enabled }}
+{{- with .Values.plex.volume }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  {{ with .annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{ with .labels }}
+  labels:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  storageClassName: {{ .storageClassName }}
+  {{ with .selector }}
+  selector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+---
+### CONFIGMAP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plex-config
+data:
+  PGID: "{{ .Values.general.pgid }}"
+  PUID: "{{ .Values.general.puid }}"
+  PLEX_CLAIM: {{ .Values.plex.claim }}
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-plex
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.plex.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
+        app: plex
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.general.puid }}
+        runAsGroup: {{ .Values.general.pgid }}
+        fsGroup: {{ .Values.general.pgid }}
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.plex.volume.name }}
+        {{- if .Values.plex.extraVolumes }}
+          {{- toYaml .Values.plex.extraVolumes | nindent 8}}
+        {{- end }}
+      hostNetwork: {{ .Values.plex.hostNetwork }}
+      containers:
+        - name: {{ include "k8s-mediamanager.fullname" . }}-plex
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: plex-config
+          image: "{{ .Values.plex.container.image }}:{{ .Values.plex.container.tag | default .Values.general.image_tag }}"
+          imagePullPolicy: Always
+          livenessProbe:
+            httpGet:
+              path: /identity
+              port: {{ .Values.plex.container.port }}
+          readinessProbe:
+            httpGet:
+              path: /identity
+              port: {{ .Values.plex.container.port }}
+          ports:
+            - name: plex-port
+              containerPort: {{ .Values.plex.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /movies
+              subPath: "{{ .Values.general.sharedStorage.subPaths.movies }}"
+            - name: media
+              mountPath: /tv
+              subPath: "{{ .Values.general.sharedStorage.subPaths.tv }}"
+          {{- if .Values.plex.extraVolumeMounts }}
+            {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.plex.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.general.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+### SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-plex
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: plex
+spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
+  type: {{ .Values.plex.service.type }}
+  ports:
+    - port: {{ .Values.plex.service.port }}
+      targetPort: {{ .Values.plex.container.port }}
+      protocol: TCP
+      name: plex-port
+{{ if eq .Values.plex.service.type "NodePort" }}
+      nodePort: {{ .Values.plex.service.nodePort }}
+{{ end }}
+  selector:
+    app: plex
+
+---
+### INGRESS
+{{ if .Values.plex.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-plex
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: plex
+  {{- with .Values.plex.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.plex.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.general.plex_ingress_host | quote }}
+      secretName: {{ .Values.general.plex_ingress_host }}-tls
+{{ end }}
+  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  rules:
+    - host: {{ .Values.general.plex_ingress_host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-mediamanager.fullname" . }}-plex
+                port:
+                  number: {{ .Values.plex.service.port }}
+{{ end }}
+{{ end }}

@@ -1,0 +1,279 @@
+{{ if .Values.prowlarr.enabled }}
+{{- with .Values.prowlarr.volume }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  {{ with .annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{ with .labels }}
+  labels:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  storageClassName: {{ .storageClassName }}
+  {{ with .selector }}
+  selector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+---
+### CONFIGMAPS
+## INIT-CONTAINER
+apiVersion: v1
+data:
+  config.xml: |
+    <Config>
+      <UrlBase>{{ .Values.prowlarr.ingress.path }}</UrlBase>
+      <Port>{{ .Values.prowlarr.container.port }}</Port>
+      <ApiKey>{{ .Values.prowlarr.apiKey }}</ApiKey>
+      <InstanceName>{{ .Values.prowlarr.instanceName }}</InstanceName>
+    </Config>
+  init-prowlarr.sh: |
+    #!/bin/bash
+    echo "### Initializing config ###"
+    if [ ! -f /prowlarr-config/config.xml ]; then
+      cp -n /init-prowlarr/config.xml /prowlarr-config/config.xml
+      echo "### No configuration found, intialized with default settings ###"
+    fi
+kind: ConfigMap
+metadata:
+  name: init-prowlarr-cm
+---
+## APPLICATION
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prowlarr-config
+data:
+  PGID: "{{ .Values.general.pgid }}"
+  PUID: "{{ .Values.general.puid }}"
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
+        app: prowlarr
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.general.puid }}
+        runAsGroup: {{ .Values.general.pgid }}
+        fsGroup: {{ .Values.general.pgid }}
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: config-prowlarr
+          image: docker.io/ubuntu:groovy
+          command: ["/init-prowlarr/init-prowlarr.sh"]
+          volumeMounts:
+            - mountPath: /init-prowlarr
+              name: init-files-prowlarr
+            - name: config
+              mountPath: /prowlarr-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        {{- if .Values.prowlarr.exportarr.enabled}}
+        - name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.prowlarr.exportarr.image }}:{{ .Values.prowlarr.exportarr.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - prowlarr
+          env:
+            - name: PORT
+              value: {{ .Values.prowlarr.exportarr.port | quote }}
+            - name: URL
+              value: "http://localhost:{{ .Values.prowlarr.container.port }}{{ .Values.prowlarr.exportarr.urlBase }}"
+            - name: APIKEY
+              {{- if .Values.prowlarr.apiKey }}
+              value: {{ .Values.prowlarr.apiKey }}
+              {{- end }}
+              {{- if .Values.prowlarr.apiSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.prowlarr.apiSecret }}
+                  key: api-key
+              {{- end }}
+            - name: PROWLARR__BACKFILL
+              value: {{ .Values.prowlarr.exportarr.backfill | quote }}
+          ports:
+            - name: monitoring
+              containerPort: {{ .Values.prowlarr.exportarr.port }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+        {{- end }}
+        - name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: prowlarr-config
+          image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag | default .Values.general.image_tag }}"
+          imagePullPolicy: Always
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.prowlarr.container.port }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.prowlarr.container.port }}
+          ports:
+            - name: prowlarr-port
+              containerPort: {{ .Values.prowlarr.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          {{- if .Values.prowlarr.extraVolumes }}
+            {{- toYaml .Values.prowlarr.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.prowlarr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.prowlarr.volume.name }}
+        - name: init-files-prowlarr
+          configMap:
+            defaultMode: 493
+            name: init-prowlarr-cm
+        {{- if .Values.prowlarr.extraVolumes }}
+          {{- toYaml .Values.prowlarr.extraVolumes | nindent 8}}
+        {{- end }}
+      {{- with .Values.general.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+### SERVICES
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: prowlarr
+spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
+  type: {{ .Values.plex.service.type }}
+  type: {{ .Values.prowlarr.service.type }}
+  ports:
+    - port: {{ .Values.prowlarr.service.port }}
+      targetPort: {{ .Values.prowlarr.container.port }}
+      protocol: TCP
+{{ if eq .Values.prowlarr.service.type "NodePort" }}
+      nodePort: {{ .Values.prowlarr.service.nodePort }}
+{{ end }}
+      name: prowlarr-port
+    {{- if .Values.prowlarr.exportarr.enabled }}
+    - port: {{ .Values.prowlarr.exportarr.port }}
+      targetPort: {{ .Values.prowlarr.exportarr.port }}
+      protocol: TCP
+      name: monitoring
+    {{- end }}
+  selector:
+    app: prowlarr
+---
+### INGRESS ###
+{{ if .Values.prowlarr.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: prowlarr
+  {{- with .Values.prowlarr.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{ if .Values.prowlarr.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.general.ingress_host | quote }}
+      secretName: {{ .Values.general.ingress_host }}-tls
+{{ end }}
+  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  rules:
+    - host: {{ .Values.general.ingress_host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.prowlarr.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
+                port:
+                  number: {{ .Values.prowlarr.service.port }}
+{{ end }}
+---
+{{ if .Values.prowlarr.exportarr.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name:  {{ include "k8s-mediamanager.fullname" . }}-prowlarr
+  labels:
+    app: prowlarr
+spec:
+  selector:
+    matchLabels:
+      app: prowlarr
+  endpoints:
+    - port: monitoring
+      scheme: http
+      path: /metrics
+{{ end }}
+{{ end }}

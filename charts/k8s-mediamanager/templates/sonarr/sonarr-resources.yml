@@ -1,0 +1,278 @@
+{{ if .Values.sonarr.enabled }}
+{{- with .Values.sonarr.volume }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  {{ with .annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{ with .labels }}
+  labels:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  storageClassName: {{ .storageClassName }}
+  {{ with .selector }}
+  selector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+---
+### CONFIGMAP
+## INIT-CONTAINER
+apiVersion: v1
+data:
+  config.xml: |
+    <Config>
+      <UrlBase>{{ .Values.sonarr.ingress.path }}</UrlBase>
+      <Port>{{ .Values.sonarr.container.port }}</Port>
+      <ApiKey>{{ .Values.sonarr.apiKey }}</ApiKey>
+      <InstanceName>{{ .Values.sonarr.instanceName }}</InstanceName>
+    </Config>
+  init-sonarr.sh: |
+    #!/bin/bash
+    echo "### Initializing config ###"
+    if [ ! -f /sonarr-config/config.xml ]; then
+      cp -n /init-sonarr/config.xml /sonarr-config/config.xml
+      echo "### No configuration found, intialized with default settings ###"
+    fi
+kind: ConfigMap
+metadata:
+  name: init-sonarr-cm
+---
+## APPLICATION
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonarr-config
+data:
+  PGID: "{{ .Values.general.pgid }}"
+  PUID: "{{ .Values.general.puid }}"
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
+        app: sonarr
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.general.puid }}
+        runAsGroup: {{ .Values.general.pgid }}
+        fsGroup: {{ .Values.general.pgid }}
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: config-sonarr
+          image: docker.io/ubuntu:groovy
+          command: ["/init-sonarr/init-sonarr.sh"]
+          volumeMounts:
+            - mountPath: /init-sonarr
+              name: init-files-sonarr
+            - name: config
+              mountPath: /sonarr-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        {{- if .Values.sonarr.exportarr.enabled }}
+        - name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.radarr.exportarr.image }}:{{ .Values.radarr.exportarr.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - sonarr
+          env:
+            - name: PORT
+              value: {{ .Values.sonarr.exportarr.port | quote }}
+            - name: URL
+              value: "http://localhost:{{ .Values.sonarr.container.port }}{{ .Values.sonarr.exportarr.urlBase }}"
+            - name: APIKEY
+              {{- if .Values.sonarr.apiKey }}
+              value: {{ .Values.sonarr.apiKey }}
+              {{- end }}
+              {{- if .Values.sonarr.apiSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sonarr.apiSecret }}
+                  key: api-key
+              {{- end }}
+          ports:
+            - name: monitoring
+              containerPort: {{ .Values.sonarr.exportarr.port | default 9090 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+        {{- end }}
+        - name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
+          securityContext:
+            runAsUser: {{ .Values.general.puid }}
+            runAsGroup: {{ .Values.general.pgid }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: sonarr-config
+          image: "{{ .Values.sonarr.container.image }}:{{ .Values.sonarr.container.tag | default .Values.general.image_tag }}"
+          imagePullPolicy: Always
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.sonarr.container.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          ports:
+            - name: sonarr-port
+              containerPort: {{ .Values.sonarr.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: "/downloads"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
+            - name: media
+              mountPath: "/tv"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.tv }}"
+          {{- if .Values.sonarr.extraVolumeMounts }}
+            {{- toYaml .Values.sonarr.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.sonarr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.sonarr.volume.name }}
+        - name: init-files-sonarr
+          configMap:
+            defaultMode: 493
+            name: init-sonarr-cm
+        {{- if .Values.sonarr.extraVolumes }}
+          {{- toYaml .Values.sonarr.extraVolumes | nindent 8}}
+        {{- end }}
+      {{- with .Values.general.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+### SERVICES
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
+  labels:
+    app: sonarr
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.sonarr.service.type }}
+  ports:
+    - port: {{ .Values.sonarr.service.port }}
+      targetPort: {{ .Values.sonarr.container.port }}
+      protocol: TCP
+{{ if eq .Values.sonarr.service.type "NodePort" }}
+      nodePort: {{ .Values.sonarr.service.nodePort }}
+{{ end }}
+      name: sonarr-port
+    {{- if .Values.sonarr.exportarr.enabled }}
+    - port: {{ .Values.sonarr.exportarr.port }}
+      targetPort: {{ .Values.sonarr.exportarr.port }}
+      protocol: TCP
+      name: monitoring
+    {{- end }}
+  selector:
+    app: sonarr
+---
+### INGRESS
+{{ if .Values.sonarr.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: sonarr
+  {{- with .Values.sonarr.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.sonarr.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.general.ingress_host | quote }}
+      secretName: {{ .Values.general.ingress_host }}-tls
+{{ end }}
+  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  rules:
+    - host: {{ .Values.general.ingress_host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.sonarr.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
+                port:
+                  number: {{ .Values.sonarr.service.port }}
+{{ end }}
+---
+{{ if .Values.sonarr.exportarr.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
+  labels:
+    app: sonarr
+spec:
+  selector:
+    matchLabels:
+      app: sonarr
+  endpoints:
+    - port: monitoring
+      scheme: http
+      path: /metrics
+{{ end }}
+{{ end }}

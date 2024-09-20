@@ -1,0 +1,286 @@
+{{ if .Values.radarr.enabled }}
+{{- with .Values.radarr.volume }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  {{ with .annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{ with .labels }}
+  labels:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  storageClassName: {{ .storageClassName }}
+  {{ with .selector }}
+  selector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+---
+### CONFIGMAP
+## INIT-CONTAINER
+---
+apiVersion: v1
+data:
+  config.xml: |
+    <Config>
+      <UrlBase>{{ .Values.radarr.ingress.path }}</UrlBase>
+      <Port>{{ .Values.radarr.container.port }}</Port>
+      <ApiKey>{{ .Values.radarr.apiKey }}</ApiKey>
+      <InstanceName>{{ .Values.radarr.instanceName }}</InstanceName>
+    </Config>
+  init-radarr.sh: |
+    #!/bin/bash
+    echo "### Initializing config ###"
+    if [ ! -f /radarr-config/config.xml ]; then
+      cp -n /init-radarr/config.xml /radarr-config/config.xml
+      echo "### No configuration found, intialized with default settings ###"
+    fi
+kind: ConfigMap
+metadata:
+  name: init-radarr-cm
+---
+## APPLICATION
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radarr-config
+data:
+  PGID: "{{ .Values.general.pgid }}"
+  PUID: "{{ .Values.general.puid }}"
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
+        app: radarr
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.general.puid }}
+        runAsGroup: {{ .Values.general.pgid }}
+        fsGroup: {{ .Values.general.pgid }}
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: config-radarr
+          image: docker.io/ubuntu:groovy
+          command: ["/init-radarr/init-radarr.sh"]
+          volumeMounts:
+            - mountPath: /init-radarr
+              name: init-files-radarr
+            - name: config
+              mountPath: /radarr-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        {{- if .Values.radarr.exportarr.enabled }}
+        - name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.radarr.exportarr.image }}:{{ .Values.radarr.exportarr.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - radarr
+          env:
+            - name: PORT
+              value: {{ .Values.radarr.exportarr.port | quote }}
+            - name: URL
+              value: "http://localhost:{{ .Values.radarr.container.port }}{{ .Values.radarr.exportarr.urlBase }}"
+            - name: APIKEY
+              {{- if .Values.radarr.apiKey }}
+              value: {{ .Values.radarr.apiKey }}
+              {{- end }}
+              {{- if .Values.radarr.apiSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.radarr.apiSecret }}
+                  key: api-key
+              {{- end }}
+          ports:
+            - name: monitoring
+              containerPort: {{ .Values.radarr.exportarr.port }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            failureThreshold: 5
+            periodSeconds: 10
+        {{- end }}
+        - name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+          securityContext:
+            runAsUser: {{ .Values.general.puid }}
+            runAsGroup: {{ .Values.general.pgid }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: radarr-config
+          image: "{{ .Values.radarr.container.image }}:{{ .Values.radarr.container.tag | default .Values.general.image_tag }}"
+          imagePullPolicy: Always
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.radarr.container.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          ports:
+            - name: radarr-port
+              containerPort: {{ .Values.radarr.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: "/downloads"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
+            - name: media
+              mountPath: "/movies"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.movies }}"
+          {{- if .Values.radarr.extraVolumes }}
+            {{- toYaml .Values.radarr.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.radarr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .Values.radarr.volume.name }}
+        - name: init-files-radarr
+          configMap:
+            defaultMode: 493
+            name: init-radarr-cm
+        {{- if .Values.radarr.extraVolumes }}
+          {{- toYaml .Values.radarr.extraVolumes | nindent 8}}
+        {{- end }}
+      {{- with .Values.general.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+### SERVICES
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  labels:
+    app: radarr
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
+  type: {{ .Values.plex.service.type }}
+  type: {{ .Values.radarr.service.type }}
+  ports:
+    - port: {{ .Values.radarr.service.port }}
+      targetPort: {{ .Values.radarr.container.port }}
+      protocol: TCP
+{{ if eq .Values.radarr.service.type "NodePort" }}
+      nodePort: {{ .Values.radarr.service.nodePort }}
+{{ end }}
+      name: radarr-port
+    {{- if .Values.sonarr.exportarr.enabled }}
+    - port: {{ .Values.sonarr.exportarr.port }}
+      targetPort: {{ .Values.sonarr.exportarr.port }}
+      protocol: TCP
+      name: monitoring
+    {{- end }}
+  selector:
+    app: radarr
+
+---
+### INGRESS ###
+{{ if .Values.radarr.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: radarr
+  {{- with .Values.radarr.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.radarr.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.general.ingress_host | quote }}
+      secretName: {{ .Values.general.ingress_host }}-tls
+{{ end }}
+  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  rules:
+    - host: {{ .Values.general.ingress_host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.radarr.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+                port:
+                  number: {{ .Values.radarr.service.port }}
+{{ end }}
+---
+{{ if .Values.radarr.exportarr.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  labels:
+    app: radarr
+spec:
+  selector:
+    matchLabels:
+      app: radarr
+  endpoints:
+    - port: monitoring
+      scheme: http
+      path: /metrics
+{{ end }}
+{{ end }}

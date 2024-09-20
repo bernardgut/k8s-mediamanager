@@ -1,0 +1,271 @@
+# Default values for k8s-mediamanager.
+# This is a YAML-formatted file.
+
+#This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+general:
+  ingress_host: k8s-mediamanager.k8s.test
+  plex_ingress_host: k8s-plex.k8s.test
+  #UID to run the process with
+  puid: 1000
+  #GID to run the process with
+  pgid: 1000
+  # IP family policy for services [ 'SingleStack', 'PreferDualStack', 'RequireDualStack' ]
+  ipFamilyPolicy: PreferDualStack 
+  # IP families for services : you can manualy specify the IP families you want to use for your services ['IPv4', 'IPv6']
+  ipFamilies: []
+  #media library storage and pathing configuration
+  sharedStorage:
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
+    labels: {}
+    accessModes: "ReadWriteMany"
+    size: 5Gi
+    storageClassName: "" # You need to specify the storage class that supports ReadWriteMany
+    persistentVolumeClaim:
+      claimName: "media-pvc"
+    selector: {}
+    # the paths, starting from the top level of the pv you're passing.
+    subPaths:
+      tv: media/tv
+      movies: media/movies
+      downloads: downloads
+      transmission: transmission
+      sabnzbd: sabnzbd
+      config: config
+  ingress:
+    ingressClassName: ""
+
+plex:
+  enabled: true
+  claim: "CHANGEME"
+  hostNetwork: false # Will sometimes be needed for upnp forwarding
+  replicaCount: 1
+  container:
+    image: ghcr.io/onedr0p/plex
+    tag: 1.41.0.8992-8463ad060
+    nodeSelector: {}
+    port: 32400
+  service:
+    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+    port: 32400
+    nodePort: # Only required if service type is NodePort
+    # Defines an additional LB service, requires cloud provider service or MetalLB
+    extraLBService: false
+  ingress:
+    enabled: true
+    annotations: {}
+    tls:
+      enabled: false
+      secretName: ""
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  volume: 
+    name: plex-config
+    accessModes: "ReadWriteOnce"
+    storage: "1Gi"
+    storageClassName: ""
+  extraVolumes: {}
+  extraVolumeMounts: {}
+
+prowlarr:
+  enabled: true
+  # hexadecimal api key for prowlarr. Change this value before deploying to production
+  apiKey: "CHANGEME-generate-a-random-32char-hex-key"
+  instanceName: Prowlarr
+  container:
+    image: ghcr.io/onedr0p/prowlarr
+    tag: 1.23.1
+    nodeSelector: {}
+    port: 9696
+  service:
+    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+    port: 9696
+    nodePort: # Only required if service type is NodePort
+    extraLBService: false
+  ingress:
+    enabled: true
+    annotations: {}
+    path: /prowlarr
+    tls:
+      enabled: false
+      secretName: ""
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "150m"
+      memory: "256Mi"
+  volume:
+    name: prowlarr-config
+    accessModes: "ReadWriteOnce"
+    storage: "1Gi"
+    storageClassName: ""
+  extraVolumes: {}
+  extraVolumeMounts: {}
+  exportarr:
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.0.1
+    enabled: true
+    serviceMonitor: true
+    port: 9090
+    urlBase: "/prowlarr"
+    backfill: true
+
+radarr:
+  enabled: true
+  # hexadecimal api key for radarr. Change this value before deploying to production
+  apiKey: "CHANGEME-generate-a-random-32char-hex-key" 
+  instanceName: Radarr
+  # apiSecret: xxx
+  container:
+    image: ghcr.io/onedr0p/radarr
+    tag: 5.9.1
+    nodeSelector: {}
+    port: 7878
+  service:
+    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+    port: 7878
+    nodePort: # Only required if service type is NodePort
+    # Defines an additional LB service, requires cloud provider service or MetalLB
+    extraLBService: false
+  ingress:
+    enabled: true
+    annotations: {}
+    path: /radarr
+    tls:
+      enabled: false
+      secretName: ""
+  resources: 
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "150m"
+      memory: "256Mi"
+  volume:
+    name: radarr-config
+    accessModes: "ReadWriteOnce"
+    storage: "1Gi"
+    storageClassName: ""
+  extraVolumes: {}
+  extraVolumeMounts: {}
+  exportarr:
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.0.1
+    enabled: true
+    serviceMonitor: true
+    port: 9090
+    urlBase: "/radarr"
+
+sonarr:
+  enabled: true
+  # hexadecimal api key for sonarr. Change this value before deploying to production
+  apiKey: "CHANGEME-generate-a-random-32char-hex-key"
+  instanceName: Sonarr
+  container:
+    image: ghcr.io/onedr0p/sonarr
+    tag: 4.0.9
+    nodeSelector: {}
+    port: 8989
+  service:
+    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+    port: 8989
+    nodePort: # Only required if service type is NodePort
+    # Defines an additional LB service, requires cloud provider service or MetalLB
+    extraLBService: false
+  ingress:
+    enabled: true
+    annotations: {}
+    path: /sonarr
+    tls:
+      enabled: false
+      secretName: ""
+  resources: 
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "150m"
+      memory: "256Mi"
+  volume: 
+    name: sonarr-config
+    accessModes: "ReadWriteOnce"
+    storage: "1Gi"
+    storageClassName: ""
+  extraVolumes: {}
+  extraVolumeMounts: {}
+  exportarr:
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.0.1
+    enabled: true
+    serviceMonitor: true
+    port: 9090
+    urlBase: /sonarr
+
+transmission:
+  enabled: true
+  container:
+    image: ghcr.io/onedr0p/transmission
+    tag: 4.0.5
+    nodeSelector: {}
+    port:
+      rpc: 9091
+      peer: 51413
+  service:
+    rpc:
+      type: ClusterIP   # ClusterIP, NodePort, LoadBalancer
+      port: 9091
+      nodePort:  # Only required if service type is NodePort
+      # Defines an additional LB service, requires cloud provider service or MetalLB
+      extraLBService: false
+    peer:
+      type: LoadBalancer   # ClusterIP, NodePort, LoadBalancer
+      port: 11413       # Port for the peer service to listen on. Make sure this port is open on your cluster firewall/ingress
+      nodePort:   # Only required if service type is NodePort
+      nodePortUDP:  # Only required if service type is NodePort
+      # Defines an additional LB service, requires cloud provider service or MetalLB
+      extraLBService: false
+  ingress:
+    enabled: true
+    annotations: {}
+    path: /transmission
+    tls:
+      enabled: false
+      secretName: ""
+  config:
+    auth:
+      enabled: true
+      username: "admin"
+      password: "changeme1234"
+  resources: 
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+  volume: 
+    name: transmission-config
+    accessModes: "ReadWriteOnce"
+    storage: "1Gi"
+    storageClassName: ""
+  extraVolumes: {}
+  extraVolumeMounts: {}
