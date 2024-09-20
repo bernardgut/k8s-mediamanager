@@ -10,8 +10,8 @@ _An all-in-one Opiniated Kubernetes media manager helm chart built with security
 
 ![GitHub Repo stars](https://img.shields.io/github/stars/sekops-ch/k8s-mediamanager?style=for-the-badge)
 ![GitHub forks](https://img.shields.io/github/forks/sekops-ch/k8s-mediamanager?style=for-the-badge)
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/sekops-ch/k8s-mediamanager/release-scheduled.yaml?style=for-the-badge&label=Scheduled%20Release)
-
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/sekops-ch/k8s-mediamanager/release.yaml?style=for-the-badge)
+![GitHub Release](https://img.shields.io/github/v/release/sekops-ch/k8s-mediamanager?style=for-the-badge)
 </div>
 
 Allows you to create a fully working and complete media manager on #kubernetes, respecting the latest [security best practices](https://github.com/kubernetes-sigs/kubebuilder/discussions/2840): 
