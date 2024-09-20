@@ -64,7 +64,9 @@ spec:
         {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
         app: transmission
     spec:
+      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.general.puid }}
@@ -73,6 +75,38 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
+        - name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.transmission.metrics.image }}:{{ .Values.transmission.metrics.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: WEB_PATH
+              value: /metrics
+            - name: WEB_PORT
+              value: "{{ .Values.transmission.metrics.port }}"
+            - name: TRANSMISSION_ADD
+              value: "http://localhost:{{ .Values.transmission.container.port.rpc }}{{ .Values.transmission.ingress.path }}"
+            - name: TRANSMISSION_USERNAME
+              value: "{{ .Values.transmission.config.auth.username }}"
+            - name: TRANSMISSION_PASSWORD
+              value: "{{ .Values.transmission.config.auth.password }}"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.transmission.metrics.port | default 9090 }}
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
         - name: {{ include "k8s-mediamanager.fullname" . }}-transmission
           securityContext:
             allowPrivilegeEscalation: false
@@ -82,14 +116,16 @@ spec:
           envFrom:
             - configMapRef:
                 name: transmission-config
-          image: "{{ .Values.transmission.container.image }}:{{ .Values.transmission.container.tag | default .Values.general.image_tag }}"
+          image: "{{ .Values.transmission.container.image }}:{{ .Values.transmission.container.tag }}"
           imagePullPolicy: Always
           livenessProbe:
             tcpSocket:
               port: {{ .Values.transmission.container.port.rpc }}
+            initialDelaySeconds: 10
           readinessProbe:
             tcpSocket:
               port: {{ .Values.transmission.container.port.rpc }}
+            initialDelaySeconds: 10
           ports:
             - name: trans-port
               containerPort: {{ .Values.transmission.container.port.rpc }}
@@ -152,9 +188,15 @@ spec:
       targetPort: {{ .Values.transmission.container.port.rpc }}
       protocol: TCP
       name: trans-port
-{{ if eq .Values.transmission.service.rpc.type "NodePort" }}
+      {{ if eq .Values.transmission.service.rpc.type "NodePort" }}
       nodePort: {{ .Values.transmission.service.rpc.nodePort }}
-{{ end }}
+      {{ end }}
+    {{- if .Values.transmission.metrics.enabled }}
+    - port: {{ .Values.transmission.metrics.port }}
+      targetPort: {{ .Values.transmission.metrics.port }}
+      protocol: TCP
+      name: metrics
+    {{- end }}
   selector:
     app: transmission
 ---
@@ -177,16 +219,16 @@ spec:
       targetPort: {{ .Values.transmission.container.port.peer }}
       protocol: TCP
       name: trans-peer-tcp
-{{ if eq .Values.transmission.service.peer.type "NodePort" }}
+      {{ if eq .Values.transmission.service.peer.type "NodePort" }}
       nodePort: {{ .Values.transmission.service.peer.nodePort }}
-{{ end }}
+      {{ end }}
     - port: {{ .Values.transmission.service.peer.port }}
       targetPort: {{ .Values.transmission.container.port.peer }}
       protocol: UDP
       name: trans-peer-udp
-{{ if eq .Values.transmission.service.peer.type "NodePort" }}
+      {{ if eq .Values.transmission.service.peer.type "NodePort" }}
       nodePort: {{ .Values.transmission.service.peer.nodePortUDP }}
-{{ end }}
+      {{ end }}
   selector:
     app: transmission
 ---
@@ -222,5 +264,22 @@ spec:
                 name: {{ include "k8s-mediamanager.fullname" . }}-transmission
                 port:
                   number: {{ .Values.transmission.service.rpc.port }}
+{{ end }}
+---
+{{ if .Values.transmission.metrics.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+  labels:
+    app: transmission
+spec:
+  selector:
+    matchLabels:
+      app: transmission
+  endpoints:
+    - port: metrics
+      scheme: http
+      path: /metrics
 {{ end }}
 {{ end }}

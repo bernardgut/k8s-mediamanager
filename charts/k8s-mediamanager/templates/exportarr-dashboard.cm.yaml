@@ -1,4 +1,4 @@
-{{ if or (.Values.prowlarr.exportarr.enabled) (.Values.sonarr.exportarr.enabled) (.Values.radarr.exportarr.enabled) }}
+{{ if or (.Values.prowlarr.metrics.enabled) (.Values.sonarr.metrics.enabled) (.Values.radarr.metrics.enabled) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -77,7 +77,9 @@ spec:
         {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
         app: sonarr
     spec:
+      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.general.puid }}
@@ -100,22 +102,22 @@ spec:
               drop:
                 - ALL
       containers:
-        {{- if .Values.sonarr.exportarr.enabled }}
+        {{- if .Values.sonarr.metrics.enabled }}
         - name: metrics
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-          image: "{{ .Values.radarr.exportarr.image }}:{{ .Values.radarr.exportarr.imageTag }}"
+          image: "{{ .Values.radarr.metrics.image }}:{{ .Values.radarr.metrics.imageTag }}"
           imagePullPolicy: IfNotPresent
           args:
             - sonarr
           env:
             - name: PORT
-              value: {{ .Values.sonarr.exportarr.port | quote }}
+              value: {{ .Values.sonarr.metrics.port | quote }}
             - name: URL
-              value: "http://localhost:{{ .Values.sonarr.container.port }}{{ .Values.sonarr.exportarr.urlBase }}"
+              value: "http://localhost:{{ .Values.sonarr.container.port }}{{ .Values.sonarr.ingress.path }}"
             - name: APIKEY
               {{- if .Values.sonarr.apiKey }}
               value: {{ .Values.sonarr.apiKey }}
@@ -127,20 +129,18 @@ spec:
                   key: api-key
               {{- end }}
           ports:
-            - name: monitoring
-              containerPort: {{ .Values.sonarr.exportarr.port | default 9090 }}
+            - name: metrics
+              containerPort: {{ .Values.sonarr.metrics.port | default 9090 }}
           livenessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
           readinessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
         {{- end }}
         - name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
           securityContext:
@@ -153,13 +153,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: sonarr-config
-          image: "{{ .Values.sonarr.container.image }}:{{ .Values.sonarr.container.tag | default .Values.general.image_tag }}"
+          image: "{{ .Values.sonarr.container.image }}:{{ .Values.sonarr.container.tag }}"
           imagePullPolicy: Always
-          readinessProbe:
-            tcpSocket:
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.sonarr.ingress.path }}
               port: {{ .Values.sonarr.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.sonarr.ingress.path }}
+              port: {{ .Values.sonarr.container.port }}
+            initialDelaySeconds: 10
           ports:
             - name: sonarr-port
               containerPort: {{ .Values.sonarr.container.port }}
@@ -217,11 +222,11 @@ spec:
       nodePort: {{ .Values.sonarr.service.nodePort }}
 {{ end }}
       name: sonarr-port
-    {{- if .Values.sonarr.exportarr.enabled }}
-    - port: {{ .Values.sonarr.exportarr.port }}
-      targetPort: {{ .Values.sonarr.exportarr.port }}
+    {{- if .Values.sonarr.metrics.enabled }}
+    - port: {{ .Values.sonarr.metrics.port }}
+      targetPort: {{ .Values.sonarr.metrics.port }}
       protocol: TCP
-      name: monitoring
+      name: metrics
     {{- end }}
   selector:
     app: sonarr
@@ -260,7 +265,7 @@ spec:
                   number: {{ .Values.sonarr.service.port }}
 {{ end }}
 ---
-{{ if .Values.sonarr.exportarr.serviceMonitor }}
+{{ if .Values.sonarr.metrics.serviceMonitor }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -272,7 +277,7 @@ spec:
     matchLabels:
       app: sonarr
   endpoints:
-    - port: monitoring
+    - port: metrics
       scheme: http
       path: /metrics
 {{ end }}

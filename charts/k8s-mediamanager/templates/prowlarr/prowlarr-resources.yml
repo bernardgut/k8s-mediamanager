@@ -75,7 +75,9 @@ spec:
         {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
         app: prowlarr
     spec:
+      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.general.puid }}
@@ -87,6 +89,7 @@ spec:
         - name: config-prowlarr
           image: docker.io/ubuntu:groovy
           command: ["/init-prowlarr/init-prowlarr.sh"]
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /init-prowlarr
               name: init-files-prowlarr
@@ -98,22 +101,22 @@ spec:
               drop:
                 - ALL
       containers:
-        {{- if .Values.prowlarr.exportarr.enabled}}
+        {{- if .Values.prowlarr.metrics.enabled}}
         - name: metrics
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-          image: "{{ .Values.prowlarr.exportarr.image }}:{{ .Values.prowlarr.exportarr.imageTag }}"
+          image: "{{ .Values.prowlarr.metrics.image }}:{{ .Values.prowlarr.metrics.imageTag }}"
           imagePullPolicy: IfNotPresent
           args:
             - prowlarr
           env:
             - name: PORT
-              value: {{ .Values.prowlarr.exportarr.port | quote }}
+              value: {{ .Values.prowlarr.metrics.port | quote }}
             - name: URL
-              value: "http://localhost:{{ .Values.prowlarr.container.port }}{{ .Values.prowlarr.exportarr.urlBase }}"
+              value: "http://localhost:{{ .Values.prowlarr.container.port }}{{ .Values.prowlarr.ingress.path }}"
             - name: APIKEY
               {{- if .Values.prowlarr.apiKey }}
               value: {{ .Values.prowlarr.apiKey }}
@@ -125,22 +128,20 @@ spec:
                   key: api-key
               {{- end }}
             - name: PROWLARR__BACKFILL
-              value: {{ .Values.prowlarr.exportarr.backfill | quote }}
+              value: {{ .Values.prowlarr.metrics.backfill | quote }}
           ports:
-            - name: monitoring
-              containerPort: {{ .Values.prowlarr.exportarr.port }}
+            - name: metrics
+              containerPort: {{ .Values.prowlarr.metrics.port }}
           livenessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
           readinessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
         {{- end }}
         - name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
           securityContext:
@@ -151,16 +152,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: prowlarr-config
-          image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag | default .Values.general.image_tag }}"
+          image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag }}"
           imagePullPolicy: Always
           livenessProbe:
             httpGet:
-              path: /
+              path: {{ .Values.prowlarr.ingress.path }}
               port: {{ .Values.prowlarr.container.port }}
+            initialDelaySeconds: 10
           readinessProbe:
             httpGet:
-              path: /
+              path: {{ .Values.prowlarr.ingress.path }}
               port: {{ .Values.prowlarr.container.port }}
+            initialDelaySeconds: 10
           ports:
             - name: prowlarr-port
               containerPort: {{ .Values.prowlarr.container.port }}
@@ -218,11 +221,11 @@ spec:
       nodePort: {{ .Values.prowlarr.service.nodePort }}
 {{ end }}
       name: prowlarr-port
-    {{- if .Values.prowlarr.exportarr.enabled }}
-    - port: {{ .Values.prowlarr.exportarr.port }}
-      targetPort: {{ .Values.prowlarr.exportarr.port }}
+    {{- if .Values.prowlarr.metrics.enabled }}
+    - port: {{ .Values.prowlarr.metrics.port }}
+      targetPort: {{ .Values.prowlarr.metrics.port }}
       protocol: TCP
-      name: monitoring
+      name: metrics
     {{- end }}
   selector:
     app: prowlarr
@@ -261,7 +264,7 @@ spec:
                   number: {{ .Values.prowlarr.service.port }}
 {{ end }}
 ---
-{{ if .Values.prowlarr.exportarr.serviceMonitor }}
+{{ if .Values.prowlarr.metrics.serviceMonitor }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -273,7 +276,7 @@ spec:
     matchLabels:
       app: prowlarr
   endpoints:
-    - port: monitoring
+    - port: metrics
       scheme: http
       path: /metrics
 {{ end }}

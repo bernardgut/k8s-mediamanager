@@ -78,6 +78,9 @@ spec:
         {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
         app: radarr
     spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.general.puid }}
@@ -100,22 +103,22 @@ spec:
               drop:
                 - ALL
       containers:
-        {{- if .Values.radarr.exportarr.enabled }}
+        {{- if .Values.radarr.metrics.enabled }}
         - name: metrics
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-          image: "{{ .Values.radarr.exportarr.image }}:{{ .Values.radarr.exportarr.imageTag }}"
+          image: "{{ .Values.radarr.metrics.image }}:{{ .Values.radarr.metrics.imageTag }}"
           imagePullPolicy: IfNotPresent
           args:
             - radarr
           env:
             - name: PORT
-              value: {{ .Values.radarr.exportarr.port | quote }}
+              value: {{ .Values.radarr.metrics.port | quote }}
             - name: URL
-              value: "http://localhost:{{ .Values.radarr.container.port }}{{ .Values.radarr.exportarr.urlBase }}"
+              value: "http://localhost:{{ .Values.radarr.container.port }}{{ .Values.radarr.ingress.path}}"
             - name: APIKEY
               {{- if .Values.radarr.apiKey }}
               value: {{ .Values.radarr.apiKey }}
@@ -127,20 +130,18 @@ spec:
                   key: api-key
               {{- end }}
           ports:
-            - name: monitoring
-              containerPort: {{ .Values.radarr.exportarr.port }}
+            - name: metrics
+              containerPort: {{ .Values.radarr.metrics.port }}
           livenessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
           readinessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
         {{- end }}
         - name: {{ include "k8s-mediamanager.fullname" . }}-radarr
           securityContext:
@@ -153,13 +154,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: radarr-config
-          image: "{{ .Values.radarr.container.image }}:{{ .Values.radarr.container.tag | default .Values.general.image_tag }}"
+          image: "{{ .Values.radarr.container.image }}:{{ .Values.radarr.container.tag }}"
           imagePullPolicy: Always
-          readinessProbe:
-            tcpSocket:
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.radarr.ingress.path }}
               port: {{ .Values.radarr.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.radarr.ingress.path }}
+              port: {{ .Values.radarr.container.port }}
+            initialDelaySeconds: 10
           ports:
             - name: radarr-port
               containerPort: {{ .Values.radarr.container.port }}
@@ -223,11 +229,11 @@ spec:
       nodePort: {{ .Values.radarr.service.nodePort }}
 {{ end }}
       name: radarr-port
-    {{- if .Values.sonarr.exportarr.enabled }}
-    - port: {{ .Values.sonarr.exportarr.port }}
-      targetPort: {{ .Values.sonarr.exportarr.port }}
+    {{- if .Values.sonarr.metrics.enabled }}
+    - port: {{ .Values.sonarr.metrics.port }}
+      targetPort: {{ .Values.sonarr.metrics.port }}
       protocol: TCP
-      name: monitoring
+      name: metrics
     {{- end }}
   selector:
     app: radarr
@@ -267,7 +273,7 @@ spec:
                   number: {{ .Values.radarr.service.port }}
 {{ end }}
 ---
-{{ if .Values.radarr.exportarr.serviceMonitor }}
+{{ if .Values.radarr.metrics.serviceMonitor }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -279,7 +285,7 @@ spec:
     matchLabels:
       app: radarr
   endpoints:
-    - port: monitoring
+    - port: metrics
       scheme: http
       path: /metrics
 {{ end }}

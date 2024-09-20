@@ -78,6 +78,9 @@ spec:
         {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
         app: lidarr
     spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.general.puid }}
@@ -100,22 +103,22 @@ spec:
               drop:
                 - ALL
       containers:
-        {{- if .Values.lidarr.exportarr.enabled }}
+        {{- if .Values.lidarr.metrics.enabled }}
         - name: metrics
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-          image: "{{ .Values.lidarr.exportarr.image }}:{{ .Values.lidarr.exportarr.imageTag }}"
+          image: "{{ .Values.lidarr.metrics.image }}:{{ .Values.lidarr.metrics.imageTag }}"
           imagePullPolicy: IfNotPresent
           args:
             - lidarr
           env:
             - name: PORT
-              value: {{ .Values.lidarr.exportarr.port | quote }}
+              value: {{ .Values.lidarr.metrics.port | quote }}
             - name: URL
-              value: "http://localhost:{{ .Values.lidarr.container.port }}{{ .Values.lidarr.exportarr.urlBase }}"
+              value: "http://localhost:{{ .Values.lidarr.container.port }}{{ .Values.lidarr.ingress.path }}"
             - name: APIKEY
               {{- if .Values.lidarr.apiKey }}
               value: {{ .Values.lidarr.apiKey }}
@@ -127,20 +130,16 @@ spec:
                   key: api-key
               {{- end }}
           ports:
-            - name: monitoring
-              containerPort: {{ .Values.lidarr.exportarr.port }}
+            - name: metrics
+              containerPort: {{ .Values.lidarr.metrics.port }}
           livenessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
           readinessProbe:
             httpGet:
-              path: /healthz
-              port: monitoring
-            failureThreshold: 5
-            periodSeconds: 10
+              path: /metrics
+              port: metrics
         {{- end }}
         - name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
           securityContext:
@@ -153,13 +152,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: lidarr-config
-          image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag | default .Values.general.image_tag }}"
+          image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag }}"
           imagePullPolicy: Always
-          readinessProbe:
-            tcpSocket:
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.lidarr.ingress.path }}
               port: {{ .Values.lidarr.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.lidarr.ingress.path }}
+              port: {{ .Values.lidarr.container.port }}
+            initialDelaySeconds: 10
           ports:
             - name: lidarr-port
               containerPort: {{ .Values.lidarr.container.port }}
@@ -223,11 +227,11 @@ spec:
       nodePort: {{ .Values.lidarr.service.nodePort }}
 {{ end }}
       name: lidarr-port
-    {{- if .Values.sonarr.exportarr.enabled }}
-    - port: {{ .Values.sonarr.exportarr.port }}
-      targetPort: {{ .Values.sonarr.exportarr.port }}
+    {{- if .Values.sonarr.metrics.enabled }}
+    - port: {{ .Values.sonarr.metrics.port }}
+      targetPort: {{ .Values.sonarr.metrics.port }}
       protocol: TCP
-      name: monitoring
+      name: metrics
     {{- end }}
   selector:
     app: lidarr
@@ -267,7 +271,7 @@ spec:
                   number: {{ .Values.lidarr.service.port }}
 {{ end }}
 ---
-{{ if .Values.lidarr.exportarr.serviceMonitor }}
+{{ if .Values.lidarr.metrics.serviceMonitor }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -279,7 +283,7 @@ spec:
     matchLabels:
       app: lidarr
   endpoints:
-    - port: monitoring
+    - port: metrics
       scheme: http
       path: /metrics
 {{ end }}

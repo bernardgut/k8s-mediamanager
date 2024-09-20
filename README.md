@@ -214,10 +214,12 @@ be added to your Graphana instance. Feel free to edit and submit Pull Requests o
 ## TODO
 - [X] Finish adding support for serviceAccount
 - [X] Add support for lidarr
-- [ ] Add metrics for Plex (Tautulli)
-- [ ] Add metrics for transmission
+- [X] Add metrics for Plex (Tautulli)
+- [X] Add metrics for transmission
 - [ ] Add support for Readarr
 - [ ] Add support for sabnzbz
 - [ ] Add support for Overseer
 - [ ] Add support for Requestrr
+- [ ] Fix transmission dashboard
+- [ ] move secrets to secrets API
 

@@ -39,10 +39,9 @@ general:
     subPaths:
       tv: media/tv
       movies: media/movies
+      music: media/music
       downloads: downloads
       transmission: transmission
-      sabnzbd: sabnzbd
-      config: config
   ingress:
     ingressClassName: ""
 
@@ -80,6 +79,39 @@ plex:
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
+  tautulli:
+    enabled: true
+    container:
+      image: ghcr.io/tautulli/tautulli
+      tag: v2.14.4
+      nodeSelector: {}
+      port: 8181
+    service:
+      type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+      port: 8181
+      nodePort: # Only required if service type is NodePort
+    ingress:
+      enabled: true
+      path: /tautulli
+      annotations: {}
+      tls:
+        enabled: false
+        secretName: ""
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "96Mi"
+      limits:
+        cpu: "150m"
+        memory: "128Mi"
+    volume:
+      name: tautulli-config
+      accessModes: "ReadWriteOnce"
+      storage: "1Gi"
+      storageClassName: ""
+    extraVolumes: {}
+    extraVolumeMounts: {}
+
 
 prowlarr:
   enabled: true
@@ -116,13 +148,12 @@ prowlarr:
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
-  exportarr:
+  metrics:
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
     enabled: true
     serviceMonitor: true
     port: 9090
-    urlBase: "/prowlarr"
     backfill: true
 
 radarr:
@@ -161,13 +192,12 @@ radarr:
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
-  exportarr:
+  metrics:
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
     enabled: true
     serviceMonitor: true
     port: 9090
-    urlBase: "/radarr"
 
 sonarr:
   enabled: true
@@ -204,13 +234,12 @@ sonarr:
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
-  exportarr:
+  metrics:
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
     enabled: true
     serviceMonitor: true
     port: 9090
-    urlBase: /sonarr
 
 lidarr:
   enabled: true
@@ -247,13 +276,12 @@ lidarr:
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
-  exportarr:
+  metrics:
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
     enabled: true
     serviceMonitor: true
     port: 9090
-    urlBase: /lidarr
 
 transmission:
   enabled: true
@@ -300,3 +328,9 @@ transmission:
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
+  metrics:
+    enabled: true
+    image: docker.io/evanofslack/transmission-exporter
+    imageTag: latest
+    serviceMonitor: true
+    port: 19091
