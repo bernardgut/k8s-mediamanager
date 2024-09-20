@@ -77,6 +77,7 @@ spec:
         {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
         app: sonarr
     spec:
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.general.puid }}

@@ -36,6 +36,7 @@ Allows you to create a fully working and complete media manager on #kubernetes, 
             - ALL
     ```
 - All public endpoints require authentication, support SSL termination at ingress through CNI anotations (TLS-ACME). -- *No* insecure `nodePort` endpoints.
+- All pods runnning dedicated serviceAccount (no access to the k8s API from pods)
 - Metrics endpoints and monitoring enabled by default for all apps
 
 The goal of this project is to support [semantically versioned](https://semver.org/), [rootless](https://rootlesscontaine.rs/), and [multiple architecture](https://www.docker.com/blog/multi-arch-build-and-images-the-simple-way/) containers for various applications. Container images used by the chart are from [oneDrop](https://github.com/onedr0p/containers). If you have questions regarding the images, ask there.
@@ -198,7 +199,7 @@ It also adds the dashboard config as a `configMap` in the environment. The dashb
 be added to your Graphana instance. Feel free to edit and submit Pull Requests on the dashboard.
 
 ## TODO
-- [ ] Finish adding support for serviceAccount
+- [X] Finish adding support for serviceAccount
 - [ ] Add metrics for Plex
 - [ ] Add metrics for transmission
 - [ ] Add support for lidarr
