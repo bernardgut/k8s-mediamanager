@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  k8s-mediamanager:
+  - apiVersion: v2
+    appVersion: 1.0.1
+    created: "2024-09-20T11:17:36.249583647Z"
+    description: Kubernetes media manager helm chart based on onedr0p rootless images
+    digest: fb8b5ce34459714c7192ce0b6e793658feb6200fdc1c52753edb82f52842c53c
+    name: k8s-mediamanager
+    type: application
+    urls:
+    - https://github.com/sekops-ch/k8s-mediamanager/releases/download/k8s-mediamanager-1.0.1/k8s-mediamanager-1.0.1.tgz
+    version: 1.0.1
+generated: "2024-09-20T11:17:36.249592393Z"
