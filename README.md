@@ -216,5 +216,8 @@ be added to your Graphana instance. Feel free to edit and submit Pull Requests o
 - [X] Add support for lidarr
 - [ ] Add metrics for Plex (Tautulli)
 - [ ] Add metrics for transmission
+- [ ] Add support for Readarr
 - [ ] Add support for sabnzbz
+- [ ] Add support for Overseer
+- [ ] Add support for Requestrr
 
