@@ -291,7 +291,7 @@ transmission:
     nodeSelector: {}
     port:
       rpc: 9091
-      peer: 51413
+      peer: 11413
   service:
     rpc:
       type: ClusterIP   # ClusterIP, NodePort, LoadBalancer
