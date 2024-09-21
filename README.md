@@ -177,6 +177,9 @@ transmission:
 
 See the chart [values.yaml](charts/k8s-mediamanager/values.yaml) for more details on available parameters.
 
+If you already have pre-existing volumes you can patch them using the `helm-adopt.sh` script to avoid having the 
+`error : resources already exist` issue when running the install script
+
 ## Usage
 
 Upon deploying the chart with the command above the following endpoints will become available externally:

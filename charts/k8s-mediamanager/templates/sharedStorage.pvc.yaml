@@ -1,4 +1,5 @@
 {{- with .Values.general.sharedStorage }}
+{{- if not (lookup "v1" "persistentVolumeClaim" "" .persistentVolumeClaim.claimName) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -22,4 +23,5 @@ spec:
   selector:
   {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- end }}
 {{- end }}
