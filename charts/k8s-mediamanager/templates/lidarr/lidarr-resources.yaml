@@ -49,15 +49,6 @@ kind: ConfigMap
 metadata:
   name: init-lidarr-cm
 ---
-## APPLICATION
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: lidarr-config
-data:
-  PGID: "{{ .Values.general.pgid }}"
-  PUID: "{{ .Values.general.puid }}"
----
 ### DEPLOYMENT
 apiVersion: apps/v1
 kind: Deployment
@@ -149,9 +140,13 @@ spec:
             capabilities:
               drop:
                 - ALL
-          envFrom:
-            - configMapRef:
-                name: lidarr-config
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag }}"
           imagePullPolicy: Always
           livenessProbe:

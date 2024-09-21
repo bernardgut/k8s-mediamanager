@@ -19,6 +19,8 @@ general:
   puid: 1000
   #GID to run the process with
   pgid: 1000
+  # timezone for the services
+  timezone: "Etc/UTC"
   # IP family policy for services [ 'SingleStack', 'PreferDualStack', 'RequireDualStack' ]
   ipFamilyPolicy: PreferDualStack 
   # IP families for services : you can manualy specify the IP families you want to use for your services ['IPv4', 'IPv6']
@@ -47,7 +49,6 @@ general:
 plex:
   enabled: true
   claim: "CHANGEME"
-  hostNetwork: false # Will sometimes be needed for upnp forwarding
   replicaCount: 1
   container:
     image: ghcr.io/onedr0p/plex
@@ -69,15 +70,22 @@ plex:
       cpu: "500m"
       memory: "1Gi"
     limits:
-      cpu: "2"
+      #cpu: "2"
       memory: "4Gi"
   volume: 
     name: plex-config
     accessModes: "ReadWriteOnce"
     storage: "1Gi"
     storageClassName: ""
+  # We mount a memory volume to /transcode to speed up transcoding and save wear on the disk
   extraVolumes: {}
+    # - name: plex-transcode
+    #   emptyDir:
+    #     medium: Memory
+    #     sizeLimit: "16Gi"
   extraVolumeMounts: {}
+    # - name: plex-transcode
+    #   mountPath: /transcode
   tautulli:
     enabled: true
     container:

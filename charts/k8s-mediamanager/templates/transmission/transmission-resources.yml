@@ -34,6 +34,7 @@ metadata:
 data:
   PGID: "{{ .Values.general.pgid }}"
   PUID: "{{ .Values.general.puid }}"
+  TZ: "{{ .Values.general.timezone }}"
   TRANSMISSION__DOWNLOAD_DIR: "/downloads/complete"
   TRANSMISSION__INCOMPLETE_DIR: "/downloads/transmission/incomplete"
   TRANSMISSION__PEER_PORT: "{{ .Values.transmission.service.peer.port }}"

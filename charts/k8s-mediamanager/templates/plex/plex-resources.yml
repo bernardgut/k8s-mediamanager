@@ -52,17 +52,6 @@ spec:
   {{- end }}
 {{- end }}
 ---
-### PLEX
-### CONFIGMAP
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plex-config
-data:
-  PGID: "{{ .Values.general.pgid }}"
-  PUID: "{{ .Values.general.puid }}"
-  PLEX_CLAIM: {{ .Values.plex.claim }}
----
 ### TAUTULLI
 ### INIT-CONTAINER
 apiVersion: v1
@@ -86,15 +75,6 @@ data:
       cp -n /init-tautulli/config.ini /tautulli-config/config.ini
       echo "### No configuration found, intialized with default settings ###"
     fi
----
-### CONFIGMAP
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: tautulli-config
-data:
-  PGID: "{{ .Values.general.pgid }}"
-  PUID: "{{ .Values.general.puid }}"
 ---
 ### DEPLOYMENT
 apiVersion: apps/v1
@@ -141,7 +121,6 @@ spec:
         {{- if .Values.plex.extraVolumes }}
           {{- toYaml .Values.plex.extraVolumes | nindent 8}}
         {{- end }}
-      hostNetwork: {{ .Values.plex.hostNetwork }}
       initContainers:
         - name: tautuli-config
           image: docker.io/ubuntu:groovy
@@ -170,9 +149,13 @@ spec:
             "--datadir", "/config",
             "--port", {{ .Values.plex.tautulli.container.port | quote }}
           ]
-          envFrom:
-            - configMapRef:
-                name: tautulli-config
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.plex.tautulli.container.image }}:{{ .Values.plex.tautulli.container.tag }}"
           imagePullPolicy: IfNotPresent
           livenessProbe:
@@ -203,9 +186,13 @@ spec:
             capabilities:
               drop:
                 - ALL
-          envFrom:
-            - configMapRef:
-                name: plex-config
+          environment:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: PLEX_CLAIM
+              value: {{ .Values.plex.claim }}
           image: "{{ .Values.plex.container.image }}:{{ .Values.plex.container.tag }}"
           imagePullPolicy: IfNotPresent
           livenessProbe:
@@ -222,6 +209,30 @@ spec:
             - name: plex-port
               containerPort: {{ .Values.plex.container.port }}
               protocol: TCP
+            - name: dlna-server
+              containerPort: 1900
+              protocol: UDP
+            - name: dlna-http
+              containerPort: 32469
+              protocol: TCP
+            - name: bonjour
+              containerPort: 5353
+              protocol: UDP
+            - name: plex-companion
+              containerPort: 8324
+              protocol: TCP
+            - name: gdm-32410
+              containerPort: 32410
+              protocol: UDP
+            - name: gdm-32412
+              containerPort: 32412
+              protocol: UDP
+            - name: gdm-32413
+              containerPort: 32413
+              protocol: UDP
+            - name: gdm-32414
+              containerPort: 32414
+              protocol: UDP
           volumeMounts:
             - name: plex-config
               mountPath: /config
@@ -231,6 +242,9 @@ spec:
             - name: media
               mountPath: /tv
               subPath: "{{ .Values.general.sharedStorage.subPaths.tv }}"
+            - name: media
+              mountPath: /music
+              subPath: "{{ .Values.general.sharedStorage.subPaths.music }}"
           {{- if .Values.plex.extraVolumeMounts }}
             {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
           {{- end }}

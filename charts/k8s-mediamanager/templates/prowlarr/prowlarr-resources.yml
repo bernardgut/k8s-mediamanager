@@ -48,15 +48,6 @@ kind: ConfigMap
 metadata:
   name: init-prowlarr-cm
 ---
-## APPLICATION
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: prowlarr-config
-data:
-  PGID: "{{ .Values.general.pgid }}"
-  PUID: "{{ .Values.general.puid }}"
----
 ### DEPLOYMENT
 apiVersion: apps/v1
 kind: Deployment
@@ -149,9 +140,13 @@ spec:
             capabilities:
               drop:
                 - ALL
-          envFrom:
-            - configMapRef:
-                name: prowlarr-config
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag }}"
           imagePullPolicy: Always
           livenessProbe:

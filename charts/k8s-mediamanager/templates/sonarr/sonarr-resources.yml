@@ -48,15 +48,6 @@ kind: ConfigMap
 metadata:
   name: init-sonarr-cm
 ---
-## APPLICATION
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: sonarr-config
-data:
-  PGID: "{{ .Values.general.pgid }}"
-  PUID: "{{ .Values.general.puid }}"
----
 ### DEPLOYMENT
 apiVersion: apps/v1
 kind: Deployment
@@ -150,21 +141,25 @@ spec:
             capabilities:
               drop:
                 - ALL
-          envFrom:
-            - configMapRef:
-                name: sonarr-config
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.sonarr.container.image }}:{{ .Values.sonarr.container.tag }}"
           imagePullPolicy: Always
           livenessProbe:
             httpGet:
               path: {{ .Values.sonarr.ingress.path }}
               port: {{ .Values.sonarr.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
           readinessProbe:
             httpGet:
               path: {{ .Values.sonarr.ingress.path }}
               port: {{ .Values.sonarr.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
           ports:
             - name: sonarr-port
               containerPort: {{ .Values.sonarr.container.port }}
