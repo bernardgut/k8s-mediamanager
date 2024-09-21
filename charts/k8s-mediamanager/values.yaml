@@ -41,7 +41,6 @@ general:
       movies: media/movies
       music: media/music
       downloads: downloads
-      transmission: transmission
   ingress:
     ingressClassName: ""
 

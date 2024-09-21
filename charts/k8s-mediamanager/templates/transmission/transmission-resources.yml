@@ -34,8 +34,8 @@ metadata:
 data:
   PGID: "{{ .Values.general.pgid }}"
   PUID: "{{ .Values.general.puid }}"
-  TRANSMISSION__DOWNLOAD_DIR: "/{{ .Values.general.sharedStorage.subPaths.downloads }}/{{ .Values.general.sharedStorage.subPaths.transmission }}/complete"
-  TRANSMISSION__INCOMPLETE_DIR: "/{{ .Values.general.sharedStorage.subPaths.downloads }}/{{ .Values.general.sharedStorage.subPaths.transmission }}/incomplete"
+  TRANSMISSION__DOWNLOAD_DIR: "/downloads/complete"
+  TRANSMISSION__INCOMPLETE_DIR: "/downloads/transmission/incomplete"
   TRANSMISSION__PEER_PORT: "{{ .Values.transmission.service.peer.port }}"
   TRANSMISSION__RPC_AUTHENTICATION_REQUIRED: "{{ .Values.transmission.config.auth.enabled }}"
   TRANSMISSION__RPC_ENABLED: "true"
