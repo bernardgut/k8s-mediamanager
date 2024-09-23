@@ -84,6 +84,8 @@ metadata:
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
 spec:
+  strategy:
+    type: Recreate
   replicas: {{ .Values.plex.replicaCount }}
   selector:
     matchLabels:
@@ -111,6 +113,10 @@ spec:
         - name: plex-config
           persistentVolumeClaim:
             claimName: {{ .Values.plex.volume.name }}
+        {{- if .Values.plex.extraVolumes }}
+          {{- toYaml .Values.plex.extraVolumes | nindent 8}}
+        {{- end }}
+        {{- if .Values.plex.tautulli.enabled }}
         - name: tautulli-config
           persistentVolumeClaim:
             claimName: {{ .Values.plex.tautulli.volume.name }}
@@ -118,9 +124,8 @@ spec:
           configMap:
             defaultMode: 493
             name: init-tautulli-cm
-        {{- if .Values.plex.extraVolumes }}
-          {{- toYaml .Values.plex.extraVolumes | nindent 8}}
         {{- end }}
+      {{- if .Values.plex.tautulli.enabled }}
       initContainers:
         - name: tautuli-config
           image: docker.io/ubuntu:groovy
@@ -136,51 +141,9 @@ spec:
             capabilities:
               drop:
                 - ALL
+      {{- end }}
       containers:
-        - name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          command: ["python", "Tautulli.py"]
-          args: [
-            "--config", "/config/config.ini",
-            "--datadir", "/config",
-            "--port", {{ .Values.plex.tautulli.container.port | quote }}
-          ]
-          env:
-            - name: PUID
-              value: "{{ .Values.general.puid }}"
-            - name: PGID
-              value: "{{ .Values.general.pgid }}"
-            - name: TZ
-              value: "{{ .Values.general.timezone }}"
-          image: "{{ .Values.plex.tautulli.container.image }}:{{ .Values.plex.tautulli.container.tag }}"
-          imagePullPolicy: IfNotPresent
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.plex.tautulli.ingress.path }}
-              port: {{ .Values.plex.tautulli.container.port }}
-            initialDelaySeconds: 10
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.plex.tautulli.ingress.path }}
-              port: {{ .Values.plex.tautulli.container.port }}
-            initialDelaySeconds: 10
-          ports:
-            - name: tautulli-port
-              containerPort: {{ .Values.plex.tautulli.container.port }}
-              protocol: TCP
-          volumeMounts:
-            - name: tautulli-config
-              mountPath: /config
-          {{- if .Values.plex.extraVolumeMounts }}
-            {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
-          {{- end }}
-          resources:
-            {{- toYaml .Values.plex.tautulli.resources | nindent 12 }}
-        - name: {{ include "k8s-mediamanager.fullname" . }}-plex
+        - name: plex
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -199,12 +162,14 @@ spec:
             httpGet:
               path: /identity
               port: {{ .Values.plex.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /identity
               port: {{ .Values.plex.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
           ports:
             - name: plex-port
               containerPort: {{ .Values.plex.container.port }}
@@ -252,6 +217,51 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        {{- if .Values.plex.tautulli.enabled }}
+        - name: tautulli
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          command: ["python", "Tautulli.py"]
+          args: [
+            "--config", "/config/config.ini",
+            "--datadir", "/config",
+            "--port", {{ .Values.plex.tautulli.container.port | quote }}
+          ]
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
+          image: "{{ .Values.plex.tautulli.container.image }}:{{ .Values.plex.tautulli.container.tag }}"
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.plex.tautulli.ingress.path }}
+              port: {{ .Values.plex.tautulli.container.port }}
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.plex.tautulli.ingress.path }}
+              port: {{ .Values.plex.tautulli.container.port }}
+            initialDelaySeconds: 10
+          ports:
+            - name: tautulli-port
+              containerPort: {{ .Values.plex.tautulli.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: tautulli-config
+              mountPath: /config
+          {{- if .Values.plex.extraVolumeMounts }}
+            {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.plex.tautulli.resources | nindent 12 }}
+        {{- end }}
       {{- with .Values.general.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

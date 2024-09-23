@@ -49,6 +49,7 @@ general:
 plex:
   enabled: true
   claim: "CHANGEME"
+  hardwareAcceleration: false
   replicaCount: 1
   container:
     image: ghcr.io/onedr0p/plex
@@ -146,8 +147,8 @@ prowlarr:
       cpu: "50m"
       memory: "128Mi"
     limits:
-      cpu: "150m"
-      memory: "256Mi"
+      cpu: "250m"
+      memory: "512Mi"
   volume:
     name: prowlarr-config
     accessModes: "ReadWriteOnce"
@@ -155,12 +156,32 @@ prowlarr:
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
+  flaresolverr:
+    enabled: true
+    container:
+      image: ghcr.io/flaresolverr/flaresolverr
+      tag: v3.3.21
+      nodeSelector: {}
+      port: 8191
+    service:
+      type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+      port: 8191
+      nodePort: # Only required if service type is NodePort
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "150m"
+        memory: "1024Mi"
   metrics:
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
     enabled: true
     serviceMonitor: true
     port: 9090
+    flaresolvarrMetrics:
+      port: 9191
     backfill: true
 
 radarr:
@@ -190,8 +211,8 @@ radarr:
       cpu: "50m"
       memory: "128Mi"
     limits:
-      cpu: "150m"
-      memory: "256Mi"
+      cpu: "500m"
+      memory: "512Mi"
   volume:
     name: radarr-config
     accessModes: "ReadWriteOnce"
@@ -200,9 +221,9 @@ radarr:
   extraVolumes: {}
   extraVolumeMounts: {}
   metrics:
+    enabled: true
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
-    enabled: true
     serviceMonitor: true
     port: 9090
 
@@ -230,10 +251,10 @@ sonarr:
   resources: 
     requests:
       cpu: "50m"
-      memory: "128Mi"
-    limits:
-      cpu: "150m"
       memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
   volume: 
     name: sonarr-config
     accessModes: "ReadWriteOnce"
@@ -242,9 +263,9 @@ sonarr:
   extraVolumes: {}
   extraVolumeMounts: {}
   metrics:
+    enabled: true
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
-    enabled: true
     serviceMonitor: true
     port: 9090
 
@@ -291,7 +312,7 @@ lidarr:
     port: 9090
 
 transmission:
-  enabled: true
+  enabled: false
   container:
     image: ghcr.io/onedr0p/transmission
     tag: 4.0.5
@@ -341,3 +362,55 @@ transmission:
     imageTag: latest
     serviceMonitor: true
     port: 19091
+
+qbittorrent:
+  enabled: true
+  container:
+    image: ghcr.io/onedr0p/qbittorrent
+    tag: 4.6.7
+    nodeSelector: {}
+    port: 
+      webui: 8080
+      peer: 11413
+  service:
+    webui:
+      type: ClusterIP   # ClusterIP, NodePort, LoadBalancer
+      port: 8080
+      nodePort:  # Only required if service type is NodePort
+    peer:
+      type: LoadBalancer   # ClusterIP, NodePort, LoadBalancer
+      port: 11413       # Port for the peer service to listen on. Make sure this port is open on your cluster firewall/ingress
+      nodePort:   # Only required if service type is NodePort
+      nodePortUDP:  # Only required if service type is NodePort
+  ingress:
+    enabled: true
+    annotations: {}
+    path: /
+    tls:
+      enabled: false
+      secretName: ""
+  config:
+    auth:
+      username: "admin"
+      password: "changeme1234"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  volume:
+    name: qbittorrent-config
+    accessModes: "ReadWriteOnce"
+    storage: "1Gi"
+    storageClassName: ""
+  extraVolumes: {}
+  extraVolumeMounts: {}
+  metrics:
+    enabled: true
+    image: ghcr.io/caseyscarborough/qbittorrent-exporter
+    imageTag: v1.3.5
+    serviceMonitor: true
+    containerPort: 17871
+    port: 9091

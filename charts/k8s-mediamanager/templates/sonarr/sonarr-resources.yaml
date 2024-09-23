@@ -1,5 +1,5 @@
-{{ if .Values.radarr.enabled }}
-{{- with .Values.radarr.volume }}
+{{ if .Values.sonarr.enabled }}
+{{- with .Values.sonarr.volume }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -28,32 +28,31 @@ spec:
 ---
 ### CONFIGMAP
 ## INIT-CONTAINER
----
 apiVersion: v1
 data:
   config.xml: |
     <Config>
-      <UrlBase>{{ .Values.radarr.ingress.path }}</UrlBase>
-      <Port>{{ .Values.radarr.container.port }}</Port>
-      <ApiKey>{{ .Values.radarr.apiKey }}</ApiKey>
-      <InstanceName>{{ .Values.radarr.instanceName }}</InstanceName>
+      <UrlBase>{{ .Values.sonarr.ingress.path }}</UrlBase>
+      <Port>{{ .Values.sonarr.container.port }}</Port>
+      <ApiKey>{{ .Values.sonarr.apiKey }}</ApiKey>
+      <InstanceName>{{ .Values.sonarr.instanceName }}</InstanceName>
     </Config>
-  init-radarr.sh: |
+  init-sonarr.sh: |
     #!/bin/bash
     echo "### Initializing config ###"
-    if [ ! -f /radarr-config/config.xml ]; then
-      cp -n /init-radarr/config.xml /radarr-config/config.xml
+    if [ ! -f /sonarr-config/config.xml ]; then
+      cp -n /init-sonarr/config.xml /sonarr-config/config.xml
       echo "### No configuration found, intialized with default settings ###"
     fi
 kind: ConfigMap
 metadata:
-  name: init-radarr-cm
+  name: init-sonarr-cm
 ---
 ### DEPLOYMENT
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
 spec:
@@ -67,7 +66,7 @@ spec:
     metadata:
       labels:
         {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
-        app: radarr
+        app: sonarr
     spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
@@ -80,61 +79,21 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        - name: config-radarr
+        - name: config-sonarr
           image: docker.io/ubuntu:groovy
-          command: ["/init-radarr/init-radarr.sh"]
+          command: ["/init-sonarr/init-sonarr.sh"]
           volumeMounts:
-            - mountPath: /init-radarr
-              name: init-files-radarr
+            - mountPath: /init-sonarr
+              name: init-files-sonarr
             - name: config
-              mountPath: /radarr-config
+              mountPath: /sonarr-config
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
       containers:
-        {{- if .Values.radarr.metrics.enabled }}
-        - name: metrics
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          image: "{{ .Values.radarr.metrics.image }}:{{ .Values.radarr.metrics.imageTag }}"
-          imagePullPolicy: IfNotPresent
-          args:
-            - radarr
-          env:
-            - name: PORT
-              value: {{ .Values.radarr.metrics.port | quote }}
-            - name: URL
-              value: "http://localhost:{{ .Values.radarr.container.port }}{{ .Values.radarr.ingress.path}}"
-            - name: APIKEY
-              {{- if .Values.radarr.apiKey }}
-              value: {{ .Values.radarr.apiKey }}
-              {{- end }}
-              {{- if .Values.radarr.apiSecret }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.radarr.apiSecret }}
-                  key: api-key
-              {{- end }}
-          ports:
-            - name: metrics
-              containerPort: {{ .Values.radarr.metrics.port }}
-          livenessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 10
-        {{- end }}
-        - name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+        - name: sonarr
           securityContext:
             runAsUser: {{ .Values.general.puid }}
             runAsGroup: {{ .Values.general.pgid }}
@@ -149,21 +108,21 @@ spec:
               value: "{{ .Values.general.pgid }}"
             - name: TZ
               value: "{{ .Values.general.timezone }}"
-          image: "{{ .Values.radarr.container.image }}:{{ .Values.radarr.container.tag }}"
+          image: "{{ .Values.sonarr.container.image }}:{{ .Values.sonarr.container.tag }}"
           imagePullPolicy: Always
           livenessProbe:
             httpGet:
-              path: {{ .Values.radarr.ingress.path }}
-              port: {{ .Values.radarr.container.port }}
+              path: {{ .Values.sonarr.ingress.path }}
+              port: {{ .Values.sonarr.container.port }}
             initialDelaySeconds: 10
           readinessProbe:
             httpGet:
-              path: {{ .Values.radarr.ingress.path }}
-              port: {{ .Values.radarr.container.port }}
+              path: {{ .Values.sonarr.ingress.path }}
+              port: {{ .Values.sonarr.container.port }}
             initialDelaySeconds: 10
           ports:
-            - name: radarr-port
-              containerPort: {{ .Values.radarr.container.port }}
+            - name: sonarr-port
+              containerPort: {{ .Values.sonarr.container.port }}
               protocol: TCP
           volumeMounts:
             - name: config
@@ -172,28 +131,70 @@ spec:
               mountPath: "/downloads"
               subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
             - name: media
-              mountPath: "/movies"
-              subPath: "{{ .Values.general.sharedStorage.subPaths.movies }}"
-          {{- if .Values.radarr.extraVolumes }}
-            {{- toYaml .Values.radarr.extraVolumeMounts | nindent 12}}
+              mountPath: "/tv"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.tv }}"
+          {{- if .Values.sonarr.extraVolumeMounts }}
+            {{- toYaml .Values.sonarr.extraVolumeMounts | nindent 12}}
           {{- end }}
-          {{- with .Values.radarr.resources }}
+          {{- with .Values.sonarr.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        {{- if .Values.sonarr.metrics.enabled }}
+        - name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.radarr.metrics.image }}:{{ .Values.radarr.metrics.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - sonarr
+          env:
+            - name: PORT
+              value: {{ .Values.sonarr.metrics.port | quote }}
+            - name: URL
+              value: "http://localhost:{{ .Values.sonarr.container.port }}{{ .Values.sonarr.ingress.path }}"
+            - name: APIKEY
+              {{- if .Values.sonarr.apiKey }}
+              value: {{ .Values.sonarr.apiKey }}
+              {{- end }}
+              {{- if .Values.sonarr.apiSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sonarr.apiSecret }}
+                  key: api-key
+              {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.sonarr.metrics.port | default 9090 }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.sonarr.metrics.port }}
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.sonarr.metrics.port }}
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+        {{- end }}
       volumes:
         - name: media
           persistentVolumeClaim:
             claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
         - name: config
           persistentVolumeClaim:
-            claimName: {{ .Values.radarr.volume.name }}
-        - name: init-files-radarr
+            claimName: {{ .Values.sonarr.volume.name }}
+        - name: init-files-sonarr
           configMap:
             defaultMode: 493
-            name: init-radarr-cm
-        {{- if .Values.radarr.extraVolumes }}
-          {{- toYaml .Values.radarr.extraVolumes | nindent 8}}
+            name: init-sonarr-cm
+        {{- if .Values.sonarr.extraVolumes }}
+          {{- toYaml .Values.sonarr.extraVolumes | nindent 8}}
         {{- end }}
       {{- with .Values.general.nodeSelector }}
       nodeSelector:
@@ -204,26 +205,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
   labels:
-    app: radarr
+    app: sonarr
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
 spec:
-  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
-  ipFamilies:
-    {{ if .Values.general.ipFamilies }}
-    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
-    {{- end }}
-  type: {{ .Values.plex.service.type }}
-  type: {{ .Values.radarr.service.type }}
+  type: {{ .Values.sonarr.service.type }}
   ports:
-    - port: {{ .Values.radarr.service.port }}
-      targetPort: {{ .Values.radarr.container.port }}
+    - port: {{ .Values.sonarr.service.port }}
+      targetPort: {{ .Values.sonarr.container.port }}
       protocol: TCP
-{{ if eq .Values.radarr.service.type "NodePort" }}
-      nodePort: {{ .Values.radarr.service.nodePort }}
+{{ if eq .Values.sonarr.service.type "NodePort" }}
+      nodePort: {{ .Values.sonarr.service.nodePort }}
 {{ end }}
-      name: radarr-port
+      name: sonarr-port
     {{- if .Values.sonarr.metrics.enabled }}
     - port: {{ .Values.sonarr.metrics.port }}
       targetPort: {{ .Values.sonarr.metrics.port }}
@@ -231,24 +226,23 @@ spec:
       name: metrics
     {{- end }}
   selector:
-    app: radarr
-
+    app: sonarr
 ---
-### INGRESS ###
-{{ if .Values.radarr.ingress.enabled }}
+### INGRESS
+{{ if .Values.sonarr.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
-    app: radarr
-  {{- with .Values.radarr.ingress.annotations }}
+    app: sonarr
+  {{- with .Values.sonarr.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-{{- if .Values.radarr.ingress.tls.enabled }}
+{{- if .Values.sonarr.ingress.tls.enabled }}
   tls:
     - hosts:
         - {{ .Values.general.ingress_host | quote }}
@@ -259,26 +253,26 @@ spec:
     - host: {{ .Values.general.ingress_host | quote }}
       http:
         paths:
-          - path: {{ .Values.radarr.ingress.path }}
+          - path: {{ .Values.sonarr.ingress.path }}
             pathType: Prefix
             backend:
               service:
-                name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+                name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
                 port:
-                  number: {{ .Values.radarr.service.port }}
+                  number: {{ .Values.sonarr.service.port }}
 {{ end }}
 ---
-{{ if .Values.radarr.metrics.serviceMonitor }}
+{{ if .Values.sonarr.metrics.serviceMonitor }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+  name: {{ include "k8s-mediamanager.fullname" . }}-sonarr
   labels:
-    app: radarr
+    app: sonarr
 spec:
   selector:
     matchLabels:
-      app: radarr
+      app: sonarr
   endpoints:
     - port: metrics
       scheme: http

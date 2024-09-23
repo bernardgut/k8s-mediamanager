@@ -55,6 +55,8 @@ metadata:
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
 spec:
+  strategy:
+    type: Recreate
   replicas: 1
   selector:
     matchLabels:
@@ -76,39 +78,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: metrics
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          image: "{{ .Values.transmission.metrics.image }}:{{ .Values.transmission.metrics.imageTag }}"
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: WEB_PATH
-              value: /metrics
-            - name: WEB_PORT
-              value: "{{ .Values.transmission.metrics.port }}"
-            - name: TRANSMISSION_ADD
-              value: "http://localhost:{{ .Values.transmission.container.port.rpc }}{{ .Values.transmission.ingress.path }}"
-            - name: TRANSMISSION_USERNAME
-              value: "{{ .Values.transmission.config.auth.username }}"
-            - name: TRANSMISSION_PASSWORD
-              value: "{{ .Values.transmission.config.auth.password }}"
-          ports:
-            - name: metrics
-              containerPort: {{ .Values.transmission.metrics.port | default 9090 }}
-          livenessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 10
-        - name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+        - name: transmission
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -122,11 +92,11 @@ spec:
           livenessProbe:
             tcpSocket:
               port: {{ .Values.transmission.container.port.rpc }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
           readinessProbe:
             tcpSocket:
               port: {{ .Values.transmission.container.port.rpc }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
           ports:
             - name: trans-port
               containerPort: {{ .Values.transmission.container.port.rpc }}
@@ -150,6 +120,40 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        {{ if .Values.transmission.metrics.enabled }}
+        - name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.transmission.metrics.image }}:{{ .Values.transmission.metrics.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: WEB_PATH
+              value: /metrics
+            - name: WEB_PORT
+              value: "{{ .Values.transmission.metrics.port }}"
+            - name: TRANSMISSION_ADD
+              value: "http://{{ include "k8s-mediamanager.fullname" . }}-transmission:{{ .Values.transmission.container.port.rpc }}{{ .Values.transmission.ingress.path }}"
+            - name: TRANSMISSION_USERNAME
+              value: "{{ .Values.transmission.config.auth.username }}"
+            - name: TRANSMISSION_PASSWORD
+              value: "{{ .Values.transmission.config.auth.password }}"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.transmission.metrics.port | default 9090 }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 30
+        {{ end }}
       volumes:
         - name: media
           persistentVolumeClaim:
@@ -181,7 +185,7 @@ spec:
   ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
   ipFamilies:
     {{ if .Values.general.ipFamilies }}
-    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+      {{- toYaml .Values.general.ipFamilies | nindent 4 }}
     {{- end }}
   type: {{ .Values.transmission.service.rpc.type }}
   ports:

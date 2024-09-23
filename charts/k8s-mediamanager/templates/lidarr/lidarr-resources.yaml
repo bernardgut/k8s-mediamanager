@@ -94,6 +94,55 @@ spec:
               drop:
                 - ALL
       containers:
+        - name: lidarr
+          securityContext:
+            runAsUser: {{ .Values.general.puid }}
+            runAsGroup: {{ .Values.general.pgid }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
+          image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag }}"
+          imagePullPolicy: Always
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.lidarr.ingress.path }}
+              port: {{ .Values.lidarr.container.port }}
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.lidarr.ingress.path }}
+              port: {{ .Values.lidarr.container.port }}
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+          ports:
+            - name: lidarr-port
+              containerPort: {{ .Values.lidarr.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: "/downloads"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
+            - name: media
+              mountPath: "/music"
+              subPath: "{{ .Values.general.sharedStorage.subPaths.music }}"
+          {{- if .Values.lidarr.extraVolumes }}
+            {{- toYaml .Values.lidarr.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.lidarr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- if .Values.lidarr.metrics.enabled }}
         - name: metrics
           securityContext:
@@ -132,53 +181,6 @@ spec:
               path: /metrics
               port: metrics
         {{- end }}
-        - name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
-          securityContext:
-            runAsUser: {{ .Values.general.puid }}
-            runAsGroup: {{ .Values.general.pgid }}
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          env:
-            - name: PUID
-              value: "{{ .Values.general.puid }}"
-            - name: PGID
-              value: "{{ .Values.general.pgid }}"
-            - name: TZ
-              value: "{{ .Values.general.timezone }}"
-          image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag }}"
-          imagePullPolicy: Always
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.lidarr.ingress.path }}
-              port: {{ .Values.lidarr.container.port }}
-            initialDelaySeconds: 10
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.lidarr.ingress.path }}
-              port: {{ .Values.lidarr.container.port }}
-            initialDelaySeconds: 10
-          ports:
-            - name: lidarr-port
-              containerPort: {{ .Values.lidarr.container.port }}
-              protocol: TCP
-          volumeMounts:
-            - name: config
-              mountPath: /config
-            - name: media
-              mountPath: "/downloads"
-              subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
-            - name: media
-              mountPath: "/music"
-              subPath: "{{ .Values.general.sharedStorage.subPaths.music }}"
-          {{- if .Values.lidarr.extraVolumes }}
-            {{- toYaml .Values.lidarr.extraVolumeMounts | nindent 12}}
-          {{- end }}
-          {{- with .Values.lidarr.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
       volumes:
         - name: media
           persistentVolumeClaim:

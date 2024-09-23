@@ -56,6 +56,8 @@ metadata:
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
 spec:
+  strategy:
+    type: Recreate
   replicas: 1
   selector:
     matchLabels:
@@ -92,6 +94,81 @@ spec:
               drop:
                 - ALL
       containers:
+        - name: prowlarr
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
+          image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag }}"
+          imagePullPolicy: Always
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.prowlarr.ingress.path }}
+              port: {{ .Values.prowlarr.container.port }}
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.prowlarr.ingress.path }}
+              port: {{ .Values.prowlarr.container.port }}
+            initialDelaySeconds: 10
+          ports:
+            - name: prowlarr-port
+              containerPort: {{ .Values.prowlarr.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          {{- if .Values.prowlarr.extraVolumes }}
+            {{- toYaml .Values.prowlarr.extraVolumeMounts | nindent 12}}
+          {{- end }}
+          {{- with .Values.prowlarr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.prowlarr.flaresolverr.enabled}}
+        - name: flaresolverr
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.prowlarr.flaresolverr.container.image }}:{{ .Values.prowlarr.flaresolverr.container.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
+            - name: PORT
+              value: {{ .Values.prowlarr.flaresolverr.container.port | quote }}
+            - name: HOST
+              value: "::"
+            - name: PROMETHEUS_ENABLED
+              value: {{ .Values.prowlarr.metrics.enabled | quote }}
+          ports:
+            - name: flaresolverr
+              containerPort: {{ .Values.prowlarr.flaresolverr.container.port }}
+            {{- if .Values.prowlarr.metrics.enabled}}
+            - name: metrics-fls
+              containerPort: {{ .Values.prowlarr.metrics.flaresolvarrMetrics.port }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: flaresolverr
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: flaresolverr
+            initialDelaySeconds: 10
+        {{- end }}
         {{- if .Values.prowlarr.metrics.enabled}}
         - name: metrics
           securityContext:
@@ -134,45 +211,6 @@ spec:
               port: metrics
             initialDelaySeconds: 10
         {{- end }}
-        - name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          env:
-            - name: PUID
-              value: "{{ .Values.general.puid }}"
-            - name: PGID
-              value: "{{ .Values.general.pgid }}"
-            - name: TZ
-              value: "{{ .Values.general.timezone }}"
-          image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag }}"
-          imagePullPolicy: Always
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.prowlarr.ingress.path }}
-              port: {{ .Values.prowlarr.container.port }}
-            initialDelaySeconds: 10
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.prowlarr.ingress.path }}
-              port: {{ .Values.prowlarr.container.port }}
-            initialDelaySeconds: 10
-          ports:
-            - name: prowlarr-port
-              containerPort: {{ .Values.prowlarr.container.port }}
-              protocol: TCP
-          volumeMounts:
-            - name: config
-              mountPath: /config
-          {{- if .Values.prowlarr.extraVolumes }}
-            {{- toYaml .Values.prowlarr.extraVolumeMounts | nindent 12}}
-          {{- end }}
-          {{- with .Values.prowlarr.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
       volumes:
         - name: media
           persistentVolumeClaim:
@@ -221,6 +259,10 @@ spec:
       targetPort: {{ .Values.prowlarr.metrics.port }}
       protocol: TCP
       name: metrics
+    - port: {{ .Values.prowlarr.metrics.flaresolvarrMetrics.port }}
+      targetPort: {{ .Values.prowlarr.metrics.port  }}
+      protocol: TCP
+      name: flaresolverr-metrics
     {{- end }}
   selector:
     app: prowlarr
@@ -272,6 +314,9 @@ spec:
       app: prowlarr
   endpoints:
     - port: metrics
+      scheme: http
+      path: /metrics
+    - port: metrics-fls
       scheme: http
       path: /metrics
 {{ end }}

@@ -46,6 +46,8 @@ Currently based on:
 - [Plex Media Server](https://www.plex.tv/ "Plex Media Server") - A complete and fully funtional mediaserver that allows
 you to render in a webUI your movies, TV Series, podcasts, video streams.
 
+- [Tautulli](https://github.com/Tautulli/Tautulli "Tautulli") - A Python based monitoring and tracking tool for Plex Media Server. Mounted as sidecar container to plex.
+
 - [Sonarr](https://sonarr.tv/ "Sonarr") - A TV series and show tracker, that allows the integration with download managers
 for searching and retrieving TV Series, organizing them, schedule notifications when an episode comes up and much more.
 
@@ -53,7 +55,11 @@ for searching and retrieving TV Series, organizing them, schedule notifications 
 
 - [Lidarr](https://github.com/Lidarr/Lidarr "Lidarr") - Looks and smells like Sonarr but made for music.
 
+- [Exportarr](https://github.com/onedr0p/exportarr "Exportarr") - AIO Prometheus Exporter for Sabnzbd, Bazarr, Prowlarr, Lidarr, Readarr, Radarr, and Sonarr. Mounted as sidecar container to the aformentionned.
+
 - [Prowlarr](https://github.com/Prowlarr/Prowlarr "Prowlarr") - An indexer manager/proxy built on the popular \*arr .net/reactjs base stack to integrate with your various PVR apps. Prowlarr supports management of both Torrent Trackers and Usenet Indexers.
+
+- [Filesolverr](https://github.com/FlareSolverr/FlareSolverr "Filesolverr") -  Proxy server for prowlarr to bypass Cloudflare protection. Mounted as sidecar container to Prowlarr
 
 - [Transmission](https://transmissionbt.com/ "Transmission") - A fast, easy and reliable torrent client.
 
@@ -185,7 +191,7 @@ If you already have pre-existing volumes you can patch them using the `helm-adop
 Upon deploying the chart with the command above the following endpoints will become available externally:
 
 ```
-<general.ingress_host>:443/<service> # Services UIs: where service=[radarr,sonarr,prowlarr,transmission]
+<general.ingress_host>:443/<service> # Services UIs: where service=[lidarr,radarr,sonarr,prowlarr,tautulli,transmission]
 <general.plex_ingress_host>:443/     # Plex UI
 <TRANSMISSION_LOADBALANCER_IP>:<transmission.container.port.peer> # transmission peer protocol endpoint
 ```
