@@ -149,7 +149,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-          environment:
+          env:
             - name: PUID
               value: "{{ .Values.general.puid }}"
             - name: PGID

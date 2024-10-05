@@ -83,7 +83,6 @@ spec:
               path: /
             initialDelaySeconds: 10
             timeoutSeconds: 5
-            gracePeriodSeconds: 30
           readinessProbe:
             httpGet:
               port: {{ .Values.qbittorrent.container.port.webui }}
