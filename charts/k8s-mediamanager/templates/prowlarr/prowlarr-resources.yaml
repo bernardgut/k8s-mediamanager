@@ -108,7 +108,7 @@ spec:
             - name: TZ
               value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.prowlarr.container.imagePullPolicy }}
           livenessProbe:
             httpGet:
               path: {{ .Values.prowlarr.ingress.path }}
@@ -141,7 +141,7 @@ spec:
               drop:
                 - ALL
           image: "{{ .Values.prowlarr.flaresolverr.container.image }}:{{ .Values.prowlarr.flaresolverr.container.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.prowlarr.flaresolverr.container.imagePullPolicy }}
           env:
             - name: TZ
               value: "{{ .Values.general.timezone }}"
@@ -177,7 +177,7 @@ spec:
               drop:
                 - ALL
           image: "{{ .Values.prowlarr.metrics.image }}:{{ .Values.prowlarr.metrics.imageTag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.prowlarr.metrics.imagePullPolicy }}
           args:
             - prowlarr
           env:
@@ -225,7 +225,7 @@ spec:
         {{- if .Values.prowlarr.extraVolumes }}
           {{- toYaml .Values.prowlarr.extraVolumes | nindent 8}}
         {{- end }}
-      {{- with .Values.general.nodeSelector }}
+      {{- with .Values.prowlarr.container.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

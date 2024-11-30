@@ -110,7 +110,7 @@ spec:
             - name: TZ
               value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.lidarr.container.pullPolicy }}
           livenessProbe:
             httpGet:
               path: {{ .Values.lidarr.ingress.path }}
@@ -151,7 +151,7 @@ spec:
               drop:
                 - ALL
           image: "{{ .Values.lidarr.metrics.image }}:{{ .Values.lidarr.metrics.imageTag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.lidarr.metrics.imagePullPolicy }}
           args:
             - lidarr
           env:
@@ -195,7 +195,7 @@ spec:
         {{- if .Values.lidarr.extraVolumes }}
           {{- toYaml .Values.lidarr.extraVolumes | nindent 8}}
         {{- end }}
-      {{- with .Values.general.nodeSelector }}
+      {{- with .Values.lidarr.container.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

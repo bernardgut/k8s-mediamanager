@@ -157,7 +157,7 @@ spec:
             - name: PLEX_CLAIM
               value: {{ .Values.plex.claim }}
           image: "{{ .Values.plex.container.image }}:{{ .Values.plex.container.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.plex.container.imagePullPolicy }}
           livenessProbe:
             httpGet:
               path: /identity
@@ -210,9 +210,9 @@ spec:
             - name: media
               mountPath: /music
               subPath: "{{ .Values.general.sharedStorage.subPaths.music }}"
-          {{- if .Values.plex.extraVolumeMounts }}
-            {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
-          {{- end }}
+            {{- if .Values.plex.extraVolumeMounts }}
+              {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
+            {{- end }}
           {{- with .Values.plex.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -238,7 +238,7 @@ spec:
             - name: TZ
               value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.plex.tautulli.container.image }}:{{ .Values.plex.tautulli.container.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.plex.tautulli.container.imagePullPolicy }}
           livenessProbe:
             httpGet:
               path: {{ .Values.plex.tautulli.ingress.path }}
@@ -262,7 +262,7 @@ spec:
           resources:
             {{- toYaml .Values.plex.tautulli.resources | nindent 12 }}
         {{- end }}
-      {{- with .Values.general.nodeSelector }}
+      {{- with .Values.plex.container.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

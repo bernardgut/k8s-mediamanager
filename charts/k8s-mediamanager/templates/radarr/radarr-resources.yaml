@@ -110,7 +110,7 @@ spec:
             - name: TZ
               value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.radarr.container.image }}:{{ .Values.radarr.container.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.radarr.container.pullPolicy }}
           livenessProbe:
             httpGet:
               path: {{ .Values.radarr.ingress.path }}
@@ -149,7 +149,7 @@ spec:
               drop:
                 - ALL
           image: "{{ .Values.radarr.metrics.image }}:{{ .Values.radarr.metrics.imageTag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.radarr.metrics.imagePullPolicy }}
           args:
             - radarr
           env:
@@ -197,7 +197,7 @@ spec:
         {{- if .Values.radarr.extraVolumes }}
           {{- toYaml .Values.radarr.extraVolumes | nindent 8}}
         {{- end }}
-      {{- with .Values.general.nodeSelector }}
+      {{- with .Values.radarr.container.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

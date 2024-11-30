@@ -76,7 +76,7 @@ spec:
             - name: QBITTORRENT__BT_PORT
               value: "{{ .Values.qbittorrent.container.port.peer }}"
           image: "{{ .Values.qbittorrent.container.image }}:{{ .Values.qbittorrent.container.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.qbittorrent.container.imagePullPolicy }}
           livenessProbe:
             httpGet:
               port: {{ .Values.qbittorrent.container.port.webui }}
@@ -89,7 +89,6 @@ spec:
               path: /
             initialDelaySeconds: 10
             timeoutSeconds: 5
-
           ports:
             - name: webui
               containerPort: {{ .Values.qbittorrent.container.port.webui }}
@@ -121,7 +120,7 @@ spec:
               drop:
                 - ALL
           image: "{{ .Values.qbittorrent.metrics.image }}:{{ .Values.qbittorrent.metrics.imageTag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.qbittorrent.metrics.imagePullPolicy }}
           env:
             - name: QBITTORRENT_USERNAME
               value: "{{ .Values.qbittorrent.config.auth.username }}"
@@ -155,7 +154,7 @@ spec:
       {{- if .Values.qbittorrent.extraVolumes }}
         {{- toYaml .Values.qbittorrent.extraVolumes | nindent 6 }}
       {{- end }}
-      {{- with .Values.qbittorrent.nodeSelector }}
+      {{- with .Values.qbittorrent.container.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

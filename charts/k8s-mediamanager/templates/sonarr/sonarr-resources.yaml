@@ -109,7 +109,7 @@ spec:
             - name: TZ
               value: "{{ .Values.general.timezone }}"
           image: "{{ .Values.sonarr.container.image }}:{{ .Values.sonarr.container.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.sonarr.container.imagePullPolicy }}
           livenessProbe:
             httpGet:
               path: {{ .Values.sonarr.ingress.path }}
@@ -148,7 +148,7 @@ spec:
               drop:
                 - ALL
           image: "{{ .Values.radarr.metrics.image }}:{{ .Values.radarr.metrics.imageTag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.sonarr.metrics.imagePullPolicy }}
           args:
             - sonarr
           env:
@@ -196,7 +196,7 @@ spec:
         {{- if .Values.sonarr.extraVolumes }}
           {{- toYaml .Values.sonarr.extraVolumes | nindent 8}}
         {{- end }}
-      {{- with .Values.general.nodeSelector }}
+      {{- with .Values.sonarr.container.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

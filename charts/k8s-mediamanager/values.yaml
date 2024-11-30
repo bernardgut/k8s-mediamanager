@@ -53,7 +53,8 @@ plex:
   replicaCount: 1
   container:
     image: ghcr.io/onedr0p/plex
-    tag: 1.41.0.8992-8463ad060
+    tag: rolling
+    imagePullPolicy: Always
     nodeSelector: {}
     port: 32400
   service:
@@ -68,30 +69,31 @@ plex:
       secretName: ""
   resources:
     requests:
-      cpu: "500m"
-      memory: "1Gi"
+      cpu: "150m"
+      memory: "2Gi"
     limits:
-      #cpu: "2"
-      memory: "4Gi"
+      cpu: "4"
+      memory: "16Gi"
   volume: 
     name: plex-config
     accessModes: "ReadWriteOnce"
-    storage: "1Gi"
+    storage: "200Gi"
     storageClassName: ""
   # We mount a memory volume to /transcode to speed up transcoding and save wear on the disk
-  extraVolumes: {}
-    # - name: plex-transcode
-    #   emptyDir:
-    #     medium: Memory
-    #     sizeLimit: "16Gi"
-  extraVolumeMounts: {}
-    # - name: plex-transcode
-    #   mountPath: /transcode
+  extraVolumes: 
+    - name: plex-transcode
+      emptyDir:
+        sizeLimit: "14Gi"
+        medium: Memory
+  extraVolumeMounts:
+    - name: plex-transcode
+      mountPath: /transcode
   tautulli:
     enabled: true
     container:
       image: ghcr.io/tautulli/tautulli
-      tag: v2.14.4
+      tag: latest
+      imagePullPolicy: Always
       nodeSelector: {}
       port: 8181
     service:
@@ -107,15 +109,15 @@ plex:
         secretName: ""
     resources:
       requests:
-        cpu: "50m"
+        cpu: "150m"
         memory: "96Mi"
       limits:
-        cpu: "150m"
-        memory: "128Mi"
+        cpu: "250m"
+        memory: "512Mi"
     volume:
       name: tautulli-config
       accessModes: "ReadWriteOnce"
-      storage: "1Gi"
+      storage: "10Gi"
       storageClassName: ""
     extraVolumes: {}
     extraVolumeMounts: {}
@@ -128,7 +130,8 @@ prowlarr:
   instanceName: Prowlarr
   container:
     image: ghcr.io/onedr0p/prowlarr
-    tag: 1.23.1
+    tag: rolling
+    imagePullPolicy: Always
     nodeSelector: {}
     port: 9696
   service:
@@ -147,12 +150,12 @@ prowlarr:
       cpu: "50m"
       memory: "128Mi"
     limits:
-      cpu: "250m"
-      memory: "512Mi"
+      cpu: "500m"
+      memory: "1Gi"
   volume:
     name: prowlarr-config
     accessModes: "ReadWriteOnce"
-    storage: "1Gi"
+    storage: "10Gi"
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
@@ -160,7 +163,8 @@ prowlarr:
     enabled: true
     container:
       image: ghcr.io/flaresolverr/flaresolverr
-      tag: v3.3.21
+      tag: latest
+      imagePullPolicy: Always
       nodeSelector: {}
       port: 8191
     service:
@@ -177,6 +181,7 @@ prowlarr:
   metrics:
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
+    imagePullPolicy: IfNotPresent
     enabled: true
     serviceMonitor: true
     port: 9090
@@ -192,7 +197,8 @@ radarr:
   # apiSecret: xxx
   container:
     image: ghcr.io/onedr0p/radarr
-    tag: 5.9.1
+    tag: rolling
+    imagePullPolicy: Always
     nodeSelector: {}
     port: 7878
   service:
@@ -208,15 +214,15 @@ radarr:
       secretName: ""
   resources: 
     requests:
-      cpu: "50m"
-      memory: "128Mi"
-    limits:
       cpu: "500m"
       memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
   volume:
     name: radarr-config
     accessModes: "ReadWriteOnce"
-    storage: "1Gi"
+    storage: "10Gi"
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
@@ -224,6 +230,7 @@ radarr:
     enabled: true
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
+    imagePullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
 
@@ -234,7 +241,8 @@ sonarr:
   instanceName: Sonarr
   container:
     image: ghcr.io/onedr0p/sonarr
-    tag: 4.0.9
+    tag: rolling
+    imagePullPolicy: Always
     nodeSelector: {}
     port: 8989
   service:
@@ -250,15 +258,15 @@ sonarr:
       secretName: ""
   resources: 
     requests:
-      cpu: "50m"
-      memory: "256Mi"
-    limits:
       cpu: "500m"
       memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
   volume: 
     name: sonarr-config
     accessModes: "ReadWriteOnce"
-    storage: "1Gi"
+    storage: "10Gi"
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
@@ -266,6 +274,7 @@ sonarr:
     enabled: true
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
+    imagePullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
 
@@ -276,7 +285,8 @@ lidarr:
   instanceName: Lidarr
   container:
     image: ghcr.io/crutonjohn/lidarr-plugins
-    tag: 2.6.0.4349
+    tag: rolling
+    imagePullPolicy: Always
     nodeSelector: {}
     port: 8686
   service:
@@ -292,21 +302,22 @@ lidarr:
       secretName: ""
   resources:
     requests:
-      cpu: "50m"
-      memory: "128Mi"
+      cpu: "500m"
+      memory: "512Mi"
     limits:
-      cpu: "150m"
-      memory: "256Mi"
+      cpu: "1"
+      memory: "4Gi"
   volume:
     name: lidarr-config
     accessModes: "ReadWriteOnce"
-    storage: "1Gi"
+    storage: "10Gi"
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
   metrics:
     image: ghcr.io/onedr0p/exportarr
     imageTag: v2.0.1
+    imagePullPolicy: IfNotPresent
     enabled: true
     serviceMonitor: true
     port: 9090
@@ -316,6 +327,7 @@ transmission:
   container:
     image: ghcr.io/onedr0p/transmission
     tag: 4.0.5
+    imagePullPolicy: IfNotPresent
     nodeSelector: {}
     port:
       rpc: 9091
@@ -344,11 +356,11 @@ transmission:
       password: "changeme1234"
   resources: 
     requests:
-      cpu: "10m"
-      memory: "32Mi"
+      cpu: "100m"
+      memory: "320Mi"
     limits:
-      cpu: "250m"
-      memory: "256Mi"
+      cpu: "1"
+      memory: "4Gi"
   volume: 
     name: transmission-config
     accessModes: "ReadWriteOnce"
@@ -360,6 +372,7 @@ transmission:
     enabled: true
     image: docker.io/evanofslack/transmission-exporter
     imageTag: latest
+    imagePullPolicy: Always
     serviceMonitor: true
     port: 19091
 
@@ -367,7 +380,8 @@ qbittorrent:
   enabled: true
   container:
     image: ghcr.io/onedr0p/qbittorrent
-    tag: 4.6.7
+    tag: rolling
+    imagePullPolicy: Always
     nodeSelector: {}
     port: 
       webui: 8080
@@ -395,15 +409,15 @@ qbittorrent:
       password: "changeme1234"
   resources:
     requests:
-      cpu: "50m"
-      memory: "128Mi"
-    limits:
       cpu: "500m"
       memory: "512Mi"
+    limits:
+      cpu: "4"
+      memory: "24Gi"
   volume:
     name: qbittorrent-config
     accessModes: "ReadWriteOnce"
-    storage: "1Gi"
+    storage: "10Gi"
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
@@ -411,6 +425,7 @@ qbittorrent:
     enabled: true
     image: ghcr.io/caseyscarborough/qbittorrent-exporter
     imageTag: v1.3.5
+    imagePullPolicy: IfNotPresent
     serviceMonitor: true
     containerPort: 17871
     port: 9091
