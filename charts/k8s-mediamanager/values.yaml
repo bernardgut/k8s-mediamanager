@@ -76,6 +76,9 @@ plex:
       memory: "16Gi"
   volume: 
     name: plex-config
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "200Gi"
     storageClassName: ""
@@ -116,6 +119,9 @@ plex:
         memory: "512Mi"
     volume:
       name: tautulli-config
+      annotations: 
+        # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+        helm.sh/resource-policy: keep
       accessModes: "ReadWriteOnce"
       storage: "10Gi"
       storageClassName: ""
@@ -154,6 +160,9 @@ prowlarr:
       memory: "1Gi"
   volume:
     name: prowlarr-config
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "10Gi"
     storageClassName: ""
@@ -221,6 +230,9 @@ radarr:
       memory: "4Gi"
   volume:
     name: radarr-config
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "10Gi"
     storageClassName: ""
@@ -265,6 +277,9 @@ sonarr:
       memory: "4Gi"
   volume: 
     name: sonarr-config
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "10Gi"
     storageClassName: ""
@@ -309,6 +324,9 @@ lidarr:
       memory: "4Gi"
   volume:
     name: lidarr-config
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "10Gi"
     storageClassName: ""
@@ -363,6 +381,9 @@ transmission:
       memory: "4Gi"
   volume: 
     name: transmission-config
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "1Gi"
     storageClassName: ""
@@ -416,6 +437,9 @@ qbittorrent:
       memory: "24Gi"
   volume:
     name: qbittorrent-config
+    annotations: 
+      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
+      helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "10Gi"
     storageClassName: ""

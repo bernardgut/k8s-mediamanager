@@ -210,6 +210,11 @@ metadata:
     app: sonarr
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
 spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
   type: {{ .Values.sonarr.service.type }}
   ports:
     - port: {{ .Values.sonarr.service.port }}
