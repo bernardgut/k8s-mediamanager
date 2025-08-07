@@ -52,7 +52,7 @@ plex:
   hardwareAcceleration: false
   replicaCount: 1
   container:
-    image: ghcr.io/onedr0p/plex
+    image: ghcr.io/home-operations/plex
     tag: rolling
     imagePullPolicy: Always
     nodeSelector: {}
@@ -135,7 +135,7 @@ prowlarr:
   apiKey: "CHANGEME-generate-a-random-32char-hex-key"
   instanceName: Prowlarr
   container:
-    image: ghcr.io/onedr0p/prowlarr
+    image: ghcr.io/home-operations/prowlarr
     tag: rolling
     imagePullPolicy: Always
     nodeSelector: {}
@@ -188,7 +188,7 @@ prowlarr:
         cpu: "150m"
         memory: "1024Mi"
   metrics:
-    image: ghcr.io/onedr0p/exportarr
+    image: ghcr.io/home-operations/exportarr
     imageTag: v2.0.1
     imagePullPolicy: IfNotPresent
     enabled: true
@@ -205,7 +205,7 @@ radarr:
   instanceName: Radarr
   # apiSecret: xxx
   container:
-    image: ghcr.io/onedr0p/radarr
+    image: ghcr.io/home-operations/radarr
     tag: rolling
     imagePullPolicy: Always
     nodeSelector: {}
@@ -240,7 +240,7 @@ radarr:
   extraVolumeMounts: {}
   metrics:
     enabled: true
-    image: ghcr.io/onedr0p/exportarr
+    image: ghcr.io/home-operations/exportarr
     imageTag: v2.0.1
     imagePullPolicy: IfNotPresent
     serviceMonitor: true
@@ -252,7 +252,7 @@ sonarr:
   apiKey: "CHANGEME-generate-a-random-32char-hex-key"
   instanceName: Sonarr
   container:
-    image: ghcr.io/onedr0p/sonarr
+    image: ghcr.io/home-operations/sonarr
     tag: rolling
     imagePullPolicy: Always
     nodeSelector: {}
@@ -287,7 +287,7 @@ sonarr:
   extraVolumeMounts: {}
   metrics:
     enabled: true
-    image: ghcr.io/onedr0p/exportarr
+    image: ghcr.io/home-operations/exportarr
     imageTag: v2.0.1
     imagePullPolicy: IfNotPresent
     serviceMonitor: true
@@ -333,7 +333,7 @@ lidarr:
   extraVolumes: {}
   extraVolumeMounts: {}
   metrics:
-    image: ghcr.io/onedr0p/exportarr
+    image: ghcr.io/home-operations/exportarr
     imageTag: v2.0.1
     imagePullPolicy: IfNotPresent
     enabled: true
@@ -343,8 +343,8 @@ lidarr:
 transmission:
   enabled: false
   container:
-    image: ghcr.io/onedr0p/transmission
-    tag: 4.0.5
+    image: ghcr.io/home-operations/transmission
+    tag: rolling
     imagePullPolicy: IfNotPresent
     nodeSelector: {}
     port:
@@ -400,7 +400,7 @@ transmission:
 qbittorrent:
   enabled: true
   container:
-    image: ghcr.io/onedr0p/qbittorrent
+    image: ghcr.io/home-operations/qbittorrent
     tag: rolling
     imagePullPolicy: Always
     nodeSelector: {}
