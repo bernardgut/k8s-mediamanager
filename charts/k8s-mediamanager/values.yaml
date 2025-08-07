@@ -188,8 +188,8 @@ prowlarr:
         cpu: "150m"
         memory: "1024Mi"
   metrics:
-    image: ghcr.io/home-operations/exportarr
-    imageTag: v2.0.1
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.2.0
     imagePullPolicy: IfNotPresent
     enabled: true
     serviceMonitor: true
@@ -240,8 +240,8 @@ radarr:
   extraVolumeMounts: {}
   metrics:
     enabled: true
-    image: ghcr.io/home-operations/exportarr
-    imageTag: v2.0.1
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.2.0
     imagePullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
@@ -287,8 +287,8 @@ sonarr:
   extraVolumeMounts: {}
   metrics:
     enabled: true
-    image: ghcr.io/home-operations/exportarr
-    imageTag: v2.0.1
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.2.0
     imagePullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
@@ -333,8 +333,8 @@ lidarr:
   extraVolumes: {}
   extraVolumeMounts: {}
   metrics:
-    image: ghcr.io/home-operations/exportarr
-    imageTag: v2.0.1
+    image: ghcr.io/onedr0p/exportarr
+    imageTag: v2.2.0
     imagePullPolicy: IfNotPresent
     enabled: true
     serviceMonitor: true
