@@ -114,12 +114,14 @@ spec:
             httpGet:
               path: {{ .Values.sonarr.ingress.path }}
               port: {{ .Values.sonarr.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: {{ .Values.sonarr.ingress.path }}
               port: {{ .Values.sonarr.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           ports:
             - name: sonarr-port
               containerPort: {{ .Values.sonarr.container.port }}
@@ -174,13 +176,13 @@ spec:
               path: /
               port: {{ .Values.sonarr.metrics.port }}
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: /
               port: {{ .Values.sonarr.metrics.port }}
-            initialDelaySeconds: 10
-            timeoutSeconds: 5
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
         {{- end }}
       volumes:
         - name: media

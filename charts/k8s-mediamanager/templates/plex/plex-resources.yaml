@@ -163,13 +163,13 @@ spec:
               path: /identity
               port: {{ .Values.plex.container.port }}
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: /identity
               port: {{ .Values.plex.container.port }}
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           ports:
             - name: plex-port
               containerPort: {{ .Values.plex.container.port }}
@@ -243,12 +243,14 @@ spec:
             httpGet:
               path: {{ .Values.plex.tautulli.ingress.path }}
               port: {{ .Values.plex.tautulli.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: {{ .Values.plex.tautulli.ingress.path }}
               port: {{ .Values.plex.tautulli.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           ports:
             - name: tautulli-port
               containerPort: {{ .Values.plex.tautulli.container.port }}

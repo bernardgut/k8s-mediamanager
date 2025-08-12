@@ -115,12 +115,14 @@ spec:
             httpGet:
               path: {{ .Values.radarr.ingress.path }}
               port: {{ .Values.radarr.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: {{ .Values.radarr.ingress.path }}
               port: {{ .Values.radarr.container.port }}
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           ports:
             - name: radarr-port
               containerPort: {{ .Values.radarr.container.port }}
@@ -175,13 +177,13 @@ spec:
               path: /metrics
               port: metrics
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: /metrics
               port: metrics
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
         {{- end }}
       volumes:
         - name: media

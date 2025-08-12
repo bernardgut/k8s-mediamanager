@@ -116,13 +116,13 @@ spec:
               path: {{ .Values.lidarr.ingress.path }}
               port: {{ .Values.lidarr.container.port }}
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: {{ .Values.lidarr.ingress.path }}
               port: {{ .Values.lidarr.container.port }}
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           ports:
             - name: lidarr-port
               containerPort: {{ .Values.lidarr.container.port }}
@@ -176,10 +176,14 @@ spec:
             httpGet:
               path: /metrics
               port: metrics
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: /metrics
               port: metrics
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
         {{- end }}
       volumes:
         - name: media

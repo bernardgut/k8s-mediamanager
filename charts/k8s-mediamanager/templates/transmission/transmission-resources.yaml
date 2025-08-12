@@ -92,11 +92,13 @@ spec:
           livenessProbe:
             tcpSocket:
               port: {{ .Values.transmission.container.port.rpc }}
-            initialDelaySeconds: 30
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           readinessProbe:
             tcpSocket:
               port: {{ .Values.transmission.container.port.rpc }}
-            initialDelaySeconds: 30
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           ports:
             - name: trans-port
               containerPort: {{ .Values.transmission.container.port.rpc }}

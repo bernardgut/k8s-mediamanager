@@ -81,14 +81,14 @@ spec:
             httpGet:
               port: {{ .Values.qbittorrent.container.port.webui }}
               path: /
-            initialDelaySeconds: 10
-            timeoutSeconds: 5
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               port: {{ .Values.qbittorrent.container.port.webui }}
               path: /
-            initialDelaySeconds: 10
-            timeoutSeconds: 5
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
           ports:
             - name: webui
               containerPort: {{ .Values.qbittorrent.container.port.webui }}
@@ -136,13 +136,13 @@ spec:
               port: metrics
               path: /
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               port: metrics
               path: /
             initialDelaySeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 10
       {{- end }}
       volumes:
         - name: config
