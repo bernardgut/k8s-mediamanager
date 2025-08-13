@@ -417,6 +417,10 @@ qbittorrent:
       port: 11413       # Port for the peer service to listen on. Make sure this port is open on your cluster firewall/ingress
       nodePort:   # Only required if service type is NodePort
       nodePortUDP:  # Only required if service type is NodePort
+    # IP family policy for services [ 'SingleStack', 'PreferDualStack', 'RequireDualStack' ]
+    ipFamilyPolicy: PreferDualStack
+    # IP families for services : you can manualy specify the IP families you want to use for your services ['IPv4', 'IPv6']
+    ipFamilies: []
   ingress:
     enabled: true
     annotations: {}

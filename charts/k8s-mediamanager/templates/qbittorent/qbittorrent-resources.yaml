@@ -168,10 +168,10 @@ metadata:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
     app: qbittorrent
 spec:
-  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.qbittorrent.service.ipFamilyPolicy }}
   ipFamilies:
-    {{ if .Values.general.ipFamilies }}
-      {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{ if .Values.qbittorrent.service.ipFamilies }}
+      {{- toYaml .Values.qbittorrent.service.ipFamilies | nindent 4 }}
     {{- end }}
   type: {{ .Values.qbittorrent.service.webui.type }}
   ports:
@@ -199,10 +199,10 @@ metadata:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
     app: qbittorrent
 spec:
-  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.qbittorrent.service.ipFamilyPolicy }}
   ipFamilies:
-    {{ if .Values.general.ipFamilies }}
-      {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{ if .Values.qbittorrent.service.ipFamilies }}
+      {{- toYaml .Values.qbittorrent.service.ipFamilies | nindent 4 }}
     {{- end }}
   type: {{ .Values.qbittorrent.service.peer.type }}
   ports:
