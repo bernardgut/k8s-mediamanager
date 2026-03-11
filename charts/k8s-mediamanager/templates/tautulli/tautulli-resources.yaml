@@ -1,0 +1,236 @@
+{{ if .Values.plex.tautulli.enabled }}
+{{- with .Values.plex.tautulli.volume }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  {{ with .annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{ with .labels }}
+  labels:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  storageClassName: {{ .storageClassName }}
+  {{ with .selector }}
+  selector:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+---
+### TAUTULLI
+### INIT-CONTAINER
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: init-tautulli-cm
+data:
+  config.ini: |
+    [General]
+    http_host = 0.0.0.0
+    http_port = {{ .Values.plex.tautulli.container.port }}
+    http_root = {{ .Values.plex.tautulli.ingress.path }}
+    pms_ip = {{ include "k8s-mediamanager.fullname" . }}-plex
+    pms_port = {{ .Values.plex.container.port }}
+    pms_url = "http://{{ include "k8s-mediamanager.fullname" . }}-plex:{{ .Values.plex.container.port }}"
+    launch_browser = 0
+  init-tautulli.sh: |
+    #!/bin/sh
+    echo "### Initializing config"
+    if [ ! -f /tautulli-config/config.ini ]; then
+      cp -n /init-tautulli/config.ini /tautulli-config/config.ini
+      echo "### No configuration found, intialized with default settings ###"
+    fi
+    # Ensure http_host is set to 0.0.0.0 for CherryPy binding
+    if grep -q 'http_host' /tautulli-config/config.ini; then
+      sed -i 's/^http_host = .*/http_host = 0.0.0.0/' /tautulli-config/config.ini
+    fi
+    # Ensure pms_ip points to the plex service (not localhost)
+    PMS_SVC="{{ include "k8s-mediamanager.fullname" . }}-plex"
+    if grep -q 'pms_ip' /tautulli-config/config.ini; then
+      sed -i "s/^pms_ip = .*/pms_ip = ${PMS_SVC}/" /tautulli-config/config.ini
+    fi
+    if grep -qE '^pms_url = ' /tautulli-config/config.ini; then
+      sed -i "s|^pms_url = .*|pms_url = http://${PMS_SVC}:{{ .Values.plex.container.port }}|" /tautulli-config/config.ini
+    fi
+    # Disable blocking network calls during startup (blocked by CNP)
+    # check_github_on_startup blocks main thread for 20s timeout
+    sed -i 's/^check_github_on_startup = .*/check_github_on_startup = 0/' /tautulli-config/config.ini
+    # pms_url_manual=1 prevents plex.tv discovery calls (45s+ timeout each)
+    sed -i 's/^pms_url_manual = .*/pms_url_manual = 1/' /tautulli-config/config.ini
+    # system_analytics=0 prevents analytics_event() blocking main thread
+    sed -i 's/^system_analytics = .*/system_analytics = 0/' /tautulli-config/config.ini
+    echo "### Config initialized ###"
+---
+### DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" . | nindent 8 }}
+        app: tautulli
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tautulli-config
+          persistentVolumeClaim:
+            claimName: {{ .Values.plex.tautulli.volume.name }}
+        - name: init-tautulli-cm
+          configMap:
+            defaultMode: 493
+            name: init-tautulli-cm
+      initContainers:
+        - name: tautuli-config
+          image: docker.io/alpine:3.20
+          command: ["/init-tautulli/init-tautulli.sh"]
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - mountPath: /init-tautulli
+              name: init-tautulli-cm
+            - name: tautulli-config
+              mountPath: /tautulli-config
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.general.puid }}
+            runAsGroup: {{ .Values.general.pgid }}
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+      containers:
+        - name: tautulli
+          env:
+            - name: PUID
+              value: "{{ .Values.general.puid }}"
+            - name: PGID
+              value: "{{ .Values.general.pgid }}"
+            - name: TZ
+              value: "{{ .Values.general.timezone }}"
+            - name: TAUTULLI_DOCKER
+              value: "True"
+          image: "{{ .Values.plex.tautulli.container.image }}:{{ .Values.plex.tautulli.container.tag }}"
+          imagePullPolicy: {{ .Values.plex.tautulli.container.imagePullPolicy }}
+          startupProbe:
+            exec:
+              command:
+                - curl
+                - -ILfs
+                - http://127.0.0.1:{{ .Values.plex.tautulli.container.port }}{{ .Values.plex.tautulli.ingress.path }}/status
+            failureThreshold: 60
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -ILfs
+                - http://127.0.0.1:{{ .Values.plex.tautulli.container.port }}{{ .Values.plex.tautulli.ingress.path }}/status
+            timeoutSeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - curl
+                - -ILfs
+                - http://127.0.0.1:{{ .Values.plex.tautulli.container.port }}{{ .Values.plex.tautulli.ingress.path }}/status
+            timeoutSeconds: 10
+            periodSeconds: 15
+          ports:
+            - name: tautulli-port
+              containerPort: {{ .Values.plex.tautulli.container.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: tautulli-config
+              mountPath: /config
+          resources:
+            {{- toYaml .Values.plex.tautulli.resources | nindent 12 }}
+      {{- with .Values.plex.container.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+### SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: tautulli
+spec:
+  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
+  ipFamilies:
+    {{ if .Values.general.ipFamilies }}
+    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
+    {{- end }}
+  type: {{ .Values.plex.tautulli.service.type }}
+  ports:
+    - port: {{ .Values.plex.tautulli.service.port }}
+      targetPort: {{ .Values.plex.tautulli.container.port }}
+      protocol: TCP
+      name: tautulli-port
+      {{ if eq .Values.plex.tautulli.service.type "NodePort" }}
+      nodePort: {{ .Values.plex.tautulli.service.nodePort }}
+      {{ end }}
+  selector:
+    app: tautulli
+---
+### HTTPROUTE
+{{ if .Values.plex.tautulli.ingress.enabled }}
+{{- if .Values.general.gateway.restricted.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
+  labels:
+    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
+    app: tautulli
+spec:
+  parentRefs:
+    - name: {{ .Values.general.gateway.restricted.name }}
+      namespace: {{ .Values.general.gateway.restricted.namespace }}
+  hostnames:
+    - {{ .Values.general.ingress_host | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.plex.tautulli.ingress.path }}
+      backendRefs:
+        - name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
+          port: {{ .Values.plex.tautulli.service.port }}
+{{- end }}
+{{ end }}
+{{ end }}

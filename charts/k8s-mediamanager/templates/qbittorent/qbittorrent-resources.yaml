@@ -61,6 +61,7 @@ spec:
         - name: qbittorrent
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -105,6 +106,11 @@ spec:
             - name: media
               mountPath: /downloads
               subPath: "{{ .Values.general.sharedStorage.subPaths.downloads }}"
+            {{- if .Values.qbittorrent.cache.enabled }}
+            - name: cache
+              mountPath: /cache
+              subPath: "{{ .Values.qbittorrent.cache.subPath }}"
+            {{- end }}
             {{- if .Values.qbittorrent.extraVolumes }}
             {{- toYaml .Values.qbittorrent.extraVolumeMounts | nindent 12}}
             {{- end }}
@@ -116,6 +122,7 @@ spec:
         - name: metrics
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -151,6 +158,11 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: {{ .Values.general.sharedStorage.persistentVolumeClaim.claimName }}
+        {{- if .Values.qbittorrent.cache.enabled }}
+        - name: cache
+          persistentVolumeClaim:
+            claimName: {{ .Values.qbittorrent.cache.persistentVolumeClaim.claimName }}
+        {{- end }}
       {{- if .Values.qbittorrent.extraVolumes }}
         {{- toYaml .Values.qbittorrent.extraVolumes | nindent 6 }}
       {{- end }}
@@ -223,38 +235,31 @@ spec:
   selector:
     app: qbittorrent
 ---
-## INGRESS
+## HTTPROUTE
 {{- if .Values.qbittorrent.ingress.enabled }}
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+{{- if .Values.general.gateway.restricted.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: {{ include "k8s-mediamanager.fullname" . }}-qbittorrent
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
     app: qbittorrent
-  {{- with .Values.qbittorrent.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 spec:
-  {{- if .Values.qbittorrent.ingress.tls.enabled }}
-  tls:
-    - hosts:
-        - {{ .Values.general.ingress_host | quote }}
-      secretName: {{ .Values.general.ingress_host }}-tls
-  {{ end }}
-  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  parentRefs:
+    - name: {{ .Values.general.gateway.restricted.name }}
+      namespace: {{ .Values.general.gateway.restricted.namespace }}
+  hostnames:
+    - {{ .Values.general.ingress_host | quote }}
   rules:
-    - host: {{ .Values.general.ingress_host | quote }}
-      http:
-        paths:
-        - path: {{ .Values.qbittorrent.ingress.path}}
-          pathType: Prefix
-          backend:
-            service:
-              name: {{ include "k8s-mediamanager.fullname" . }}-qbittorrent
-              port:
-                number: {{ .Values.qbittorrent.service.webui.port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.qbittorrent.ingress.path }}
+      backendRefs:
+        - name: {{ include "k8s-mediamanager.fullname" . }}-qbittorrent
+          port: {{ .Values.qbittorrent.service.webui.port }}
+{{- end }}
 {{- end }}
 ---
 ## SERVICEMONITOR

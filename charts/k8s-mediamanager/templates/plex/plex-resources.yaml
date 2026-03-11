@@ -25,56 +25,6 @@ spec:
   {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}
-{{- with .Values.plex.tautulli.volume }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ .name }}
-  {{ with .annotations }}
-  annotations:
-  {{- toYaml . | nindent 4 }}
-  {{- end }}
-  {{ with .labels }}
-  labels:
-  {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  accessModes:
-    - {{ .accessModes }}
-  resources:
-    requests:
-      storage: {{ .storage }}
-  storageClassName: {{ .storageClassName }}
-  {{ with .selector }}
-  selector:
-  {{- toYaml . | nindent 4 }}
-  {{- end }}
-{{- end }}
----
-### TAUTULLI
-### INIT-CONTAINER
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: init-tautulli-cm
-data:
-  config.ini: |
-    [General]
-    http_host = ::
-    http_port = {{ .Values.plex.tautulli.container.port }}
-    http_root = {{ .Values.plex.tautulli.ingress.path }}
-    pms_ip = localhost
-    pms_port = {{ .Values.plex.container.port }}
-    pms_url = "http://localhost:{{ .Values.plex.container.port }}"
-    launch_browser = 0
-  init-tautulli.sh: |
-    #!/bin/bash
-    echo "### Initializing config"
-    if [ ! -f /tautulli-config/config.ini ]; then
-      cp -n /init-tautulli/config.ini /tautulli-config/config.ini
-      echo "### No configuration found, intialized with default settings ###"
-    fi
 ---
 ### DEPLOYMENT
 apiVersion: apps/v1
@@ -113,39 +63,18 @@ spec:
         - name: plex-config
           persistentVolumeClaim:
             claimName: {{ .Values.plex.volume.name }}
+        - name: plex-transcode
+          emptyDir:
+            medium: Memory
+            sizeLimit: 14Gi
         {{- if .Values.plex.extraVolumes }}
           {{- toYaml .Values.plex.extraVolumes | nindent 8}}
         {{- end }}
-        {{- if .Values.plex.tautulli.enabled }}
-        - name: tautulli-config
-          persistentVolumeClaim:
-            claimName: {{ .Values.plex.tautulli.volume.name }}
-        - name: init-tautulli-cm
-          configMap:
-            defaultMode: 493
-            name: init-tautulli-cm
-        {{- end }}
-      {{- if .Values.plex.tautulli.enabled }}
-      initContainers:
-        - name: tautuli-config
-          image: docker.io/ubuntu:groovy
-          command: ["/init-tautulli/init-tautulli.sh"]
-          imagePullPolicy: IfNotPresent
-          volumeMounts:
-            - mountPath: /init-tautulli
-              name: init-tautulli-cm
-            - name: tautulli-config
-              mountPath: /tautulli-config
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-      {{- end }}
       containers:
         - name: plex
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -210,6 +139,8 @@ spec:
             - name: media
               mountPath: /music
               subPath: "{{ .Values.general.sharedStorage.subPaths.music }}"
+            - name: plex-transcode
+              mountPath: /transcode
             {{- if .Values.plex.extraVolumeMounts }}
               {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
             {{- end }}
@@ -217,53 +148,6 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-        {{- if .Values.plex.tautulli.enabled }}
-        - name: tautulli
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          command: ["python", "Tautulli.py"]
-          args: [
-            "--config", "/config/config.ini",
-            "--datadir", "/config",
-            "--port", {{ .Values.plex.tautulli.container.port | quote }}
-          ]
-          env:
-            - name: PUID
-              value: "{{ .Values.general.puid }}"
-            - name: PGID
-              value: "{{ .Values.general.pgid }}"
-            - name: TZ
-              value: "{{ .Values.general.timezone }}"
-          image: "{{ .Values.plex.tautulli.container.image }}:{{ .Values.plex.tautulli.container.tag }}"
-          imagePullPolicy: {{ .Values.plex.tautulli.container.imagePullPolicy }}
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.plex.tautulli.ingress.path }}
-              port: {{ .Values.plex.tautulli.container.port }}
-            initialDelaySeconds: 15
-            timeoutSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.plex.tautulli.ingress.path }}
-              port: {{ .Values.plex.tautulli.container.port }}
-            initialDelaySeconds: 15
-            timeoutSeconds: 10
-          ports:
-            - name: tautulli-port
-              containerPort: {{ .Values.plex.tautulli.container.port }}
-              protocol: TCP
-          volumeMounts:
-            - name: tautulli-config
-              mountPath: /config
-          {{- if .Values.plex.extraVolumeMounts }}
-            {{- toYaml .Values.plex.extraVolumeMounts | nindent 12}}
-          {{- end }}
-          resources:
-            {{- toYaml .Values.plex.tautulli.resources | nindent 12 }}
-        {{- end }}
       {{- with .Values.plex.container.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -295,98 +179,30 @@ spec:
   selector:
     app: plex
 ---
-{{ if .Values.plex.tautulli.enabled }}
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
-  labels:
-    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
-    app: plex
-spec:
-  ipFamilyPolicy: {{ .Values.general.ipFamilyPolicy }}
-  ipFamilies:
-    {{ if .Values.general.ipFamilies }}
-    {{- toYaml .Values.general.ipFamilies | nindent 4 }}
-    {{- end }}
-  type: {{ .Values.plex.tautulli.service.type }}
-  ports:
-    - port: {{ .Values.plex.tautulli.service.port }}
-      targetPort: {{ .Values.plex.tautulli.container.port }}
-      protocol: TCP
-      name: tautulli-port
-      {{ if eq .Values.plex.tautulli.service.type "NodePort" }}
-      nodePort: {{ .Values.plex.tautulli.service.nodePort }}
-      {{ end }}
-  selector:
-    app: plex
-{{ end }}
----
-### INGRESS
+### HTTPROUTE
 {{ if .Values.plex.ingress.enabled }}
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+{{- if .Values.general.gateway.public.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: {{ include "k8s-mediamanager.fullname" . }}-plex
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
     app: plex
-  {{- with .Values.plex.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 spec:
-{{- if .Values.plex.ingress.tls.enabled }}
-  tls:
-    - hosts:
-        - {{ .Values.general.plex_ingress_host | quote }}
-      secretName: {{ .Values.general.plex_ingress_host }}-tls
-{{ end }}
-  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  parentRefs:
+    - name: {{ .Values.general.gateway.public.name }}
+      namespace: {{ .Values.general.gateway.public.namespace }}
+  hostnames:
+    - {{ .Values.general.plex_ingress_host | quote }}
   rules:
-    - host: {{ .Values.general.plex_ingress_host | quote }}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "k8s-mediamanager.fullname" . }}-plex
-                port:
-                  number: {{ .Values.plex.service.port }}
-{{ end }}
----
-{{ if .Values.plex.tautulli.ingress.enabled }}
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
-  labels:
-    {{- include "k8s-mediamanager.labels" . | nindent 4 }}
-    app: plex
-  {{- with .Values.plex.tautulli.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  {{- if .Values.plex.tautulli.ingress.tls.enabled }}
-  tls:
-    - hosts:
-        - {{ .Values.general.ingress_host | quote }}
-      secretName: {{ .Values.general.ingress_host }}-tls
-  {{ end }}
-  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
-  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
-  rules:
-    - host: {{ .Values.general.ingress_host | quote }}
-      http:
-        paths:
-          - path: {{ .Values.plex.tautulli.ingress.path }}
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
-                port:
-                  number: {{ .Values.plex.tautulli.service.port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "k8s-mediamanager.fullname" . }}-plex
+          port: {{ .Values.plex.service.port }}
+{{- end }}
 {{ end }}
 {{ end }}
