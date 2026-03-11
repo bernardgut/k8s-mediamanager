@@ -1,0 +1,15 @@
+{{- if .Values.qbittorrent.enabled }}
+{{- $extraPorts := list }}
+{{- if .Values.qbittorrent.metrics.enabled }}
+{{- $extraPorts = list (dict "name" "metrics" "port" .Values.qbittorrent.metrics.containerPort) }}
+{{- end }}
+{{- include "k8s-mediamanager.service" (dict
+  "context" .
+  "component" "qbittorrent"
+  "serviceType" .Values.qbittorrent.service.webui.type
+  "port" .Values.qbittorrent.service.webui.port
+  "targetPort" "webui"
+  "nodePort" .Values.qbittorrent.service.webui.nodePort
+  "extraPorts" $extraPorts
+) }}
+{{- end }}

@@ -1,0 +1,17 @@
+{{- if .Values.prowlarr.enabled }}
+{{- $extraPorts := list }}
+{{- if .Values.prowlarr.metrics.enabled }}
+{{- $extraPorts = list
+  (dict "name" "metrics" "port" .Values.prowlarr.metrics.port)
+  (dict "name" "flaresolverr-metrics" "port" .Values.prowlarr.metrics.flaresolverrMetricsPort)
+}}
+{{- end }}
+{{- include "k8s-mediamanager.service" (dict
+  "context" .
+  "component" "prowlarr"
+  "serviceType" .Values.prowlarr.service.type
+  "port" .Values.prowlarr.service.port
+  "nodePort" .Values.prowlarr.service.nodePort
+  "extraPorts" $extraPorts
+) }}
+{{- end }}

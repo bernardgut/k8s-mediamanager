@@ -1,0 +1,9 @@
+{{- if .Values.tautulli.enabled }}
+{{- include "k8s-mediamanager.service" (dict
+  "context" .
+  "component" "tautulli"
+  "serviceType" .Values.tautulli.service.type
+  "port" .Values.tautulli.service.port
+  "nodePort" .Values.tautulli.service.nodePort
+) }}
+{{- end }}

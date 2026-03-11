@@ -1,0 +1,119 @@
+{{- if .Values.plex.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-plex
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "plex") | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: {{ .Values.plex.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "plex") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "plex") | nindent 8 }}
+        app: plex
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- include "k8s-mediamanager.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: plex
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "k8s-mediamanager.commonEnv" . | nindent 12 }}
+            - name: PLEX_CLAIM
+              value: {{ .Values.plex.claim }}
+          image: "{{ .Values.plex.image.repository }}:{{ .Values.plex.image.tag }}"
+          imagePullPolicy: {{ .Values.plex.image.pullPolicy }}
+          livenessProbe:
+            httpGet:
+              path: /identity
+              port: {{ .Values.plex.service.port }}
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /identity
+              port: {{ .Values.plex.service.port }}
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+          ports:
+            - name: plex-port
+              containerPort: {{ .Values.plex.service.port }}
+              protocol: TCP
+            - name: dlna-server
+              containerPort: 1900
+              protocol: UDP
+            - name: dlna-http
+              containerPort: 32469
+              protocol: TCP
+            - name: bonjour
+              containerPort: 5353
+              protocol: UDP
+            - name: plex-companion
+              containerPort: 8324
+              protocol: TCP
+            - name: gdm-32410
+              containerPort: 32410
+              protocol: UDP
+            - name: gdm-32412
+              containerPort: 32412
+              protocol: UDP
+            - name: gdm-32413
+              containerPort: 32413
+              protocol: UDP
+            - name: gdm-32414
+              containerPort: 32414
+              protocol: UDP
+          volumeMounts:
+            - name: plex-config
+              mountPath: /config
+            - name: media
+              mountPath: /movies
+              subPath: {{ .Values.sharedStorage.subPaths.movies | quote }}
+            - name: media
+              mountPath: /tv
+              subPath: {{ .Values.sharedStorage.subPaths.tv | quote }}
+            - name: media
+              mountPath: /music
+              subPath: {{ .Values.sharedStorage.subPaths.music | quote }}
+            {{- if .Values.plex.transcode.enabled }}
+            - name: plex-transcode
+              mountPath: /transcode
+            {{- end }}
+            {{- with .Values.plex.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.plex.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.sharedStorage.existingClaim }}
+        - name: plex-config
+          persistentVolumeClaim:
+            claimName: {{ include "k8s-mediamanager.persistenceClaimName" (dict "context" . "component" "plex" "persistence" .Values.plex.persistence) }}
+        {{- if .Values.plex.transcode.enabled }}
+        - name: plex-transcode
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.plex.transcode.sizeLimit }}
+        {{- end }}
+        {{- with .Values.plex.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.plex.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

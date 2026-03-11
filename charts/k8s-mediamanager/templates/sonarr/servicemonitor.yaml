@@ -1,0 +1,3 @@
+{{- if and .Values.sonarr.enabled .Values.sonarr.metrics.enabled .Values.sonarr.metrics.serviceMonitor }}
+{{- include "k8s-mediamanager.servicemonitor" (dict "context" . "component" "sonarr") }}
+{{- end }}

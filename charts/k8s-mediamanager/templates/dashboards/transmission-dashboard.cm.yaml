@@ -1,0 +1,13 @@
+{{- if .Values.transmission.enabled }}
+{{- if .Values.transmission.metrics.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: transmission-dashboard
+  labels:
+    grafana_dashboard: "1"
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "dashboards") | nindent 4 }}
+data:
+{{ (.Files.Glob "dashboards/transmission-dashboard.json").AsConfig | indent 2 }}
+{{- end }}
+{{- end }}

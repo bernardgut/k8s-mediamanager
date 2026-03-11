@@ -1,83 +1,109 @@
 # Default values for k8s-mediamanager.
 # This is a YAML-formatted file.
 
-#This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+# ──────────────────────────────────────────────────────────────────────────────
+# Global settings shared by all services
+# ──────────────────────────────────────────────────────────────────────────────
+global:
+  # UID/GID to run all service processes with
+  puid: 1000
+  pgid: 1000
+  # Timezone for all services
+  timezone: "Etc/UTC"
+  # Default IP family policy for services ['SingleStack','PreferDualStack','RequireDualStack']
+  ipFamilyPolicy: SingleStack
+  # IP families for services — leave empty for auto, or set e.g. ['IPv4','IPv6']
+  ipFamilies: []
+  # Init container image used by all *arr services
+  initImage:
+    repository: docker.io/alpine
+    tag: "3.20"
+    pullPolicy: IfNotPresent
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Service account
+# ──────────────────────────────────────────────────────────────────────────────
 serviceAccount:
-  # Specifies whether a service account should be created
   create: true
-  # Alllow kubelet to automatically mount the ServiceAccount's Kubernetes API credentials?
   automount: false
   annotations: {}
-  # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
-general:
-  ingress_host: k8s-mediamanager.k8s.test
-  plex_ingress_host: k8s-plex.k8s.test
-  #UID to run the process with
-  puid: 1000
-  #GID to run the process with
-  pgid: 1000
-  # timezone for the services
-  timezone: "Etc/UTC"
-  # IP family policy for services [ 'SingleStack', 'PreferDualStack', 'RequireDualStack' ]
-  ipFamilyPolicy: PreferDualStack 
-  # IP families for services : you can manualy specify the IP families you want to use for your services ['IPv4', 'IPv6']
-  ipFamilies: []
-  #media library storage and pathing configuration
-  sharedStorage:
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    labels: {}
-    accessModes: "ReadWriteMany"
-    size: 5Gi
-    storageClassName: "" # You need to specify the storage class that supports ReadWriteMany
-    persistentVolumeClaim:
-      claimName: "media-pvc"
-    selector: {}
-    # the paths, starting from the top level of the pv you're passing.
-    subPaths:
-      tv: media/tv
-      movies: media/movies
-      music: media/music
-      downloads: downloads
-  ingress:
-    ingressClassName: ""
-  gateway:
-    # Shared restricted-home gateway (in cni namespace)
-    restricted:
-      enabled: false
-      name: "restricted-home-gateway"
-      namespace: "cni"
-    # Shared public gateway (in cni namespace)
-    public:
-      enabled: false
-      name: "public-gateway"
-      namespace: "cni"
+# ──────────────────────────────────────────────────────────────────────────────
+# Shared media storage (NFS / ReadWriteMany PVC)
+# ──────────────────────────────────────────────────────────────────────────────
+sharedStorage:
+  annotations:
+    # Retain the PV on helm uninstall by default
+    helm.sh/resource-policy: keep
+  labels: {}
+  accessModes:
+    - ReadWriteMany
+  size: 5Gi
+  storageClassName: ""
+  existingClaim: "media-pvc"
+  selector: {}
+  # Sub-paths within the shared volume for media libraries
+  subPaths:
+    tv: media/tv
+    movies: media/movies
+    music: media/music
+    downloads: downloads
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Gateway API configuration (replaces legacy Ingress)
+# ──────────────────────────────────────────────────────────────────────────────
+gateway:
+  # Restricted gateway for internal services (arr apps, tautulli, qBittorrent WebUI)
+  restricted:
+    enabled: false
+    name: "restricted-home-gateway"
+    namespace: "cni"
+    hostname: "k8s-mediamanager.k8s.test"
+  # Public gateway for externally-accessible services (Plex)
+  public:
+    enabled: false
+    name: "public-gateway"
+    namespace: "cni"
+    hostname: "k8s-plex.k8s.test"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Plex Media Server
+# ──────────────────────────────────────────────────────────────────────────────
 plex:
   enabled: true
+  # Plex claim token from https://plex.tv/claim
   claim: "CHANGEME"
   hardwareAcceleration: false
   replicaCount: 1
-  container:
-    image: ghcr.io/home-operations/plex
+
+  image:
+    repository: ghcr.io/home-operations/plex
     tag: rolling
-    imagePullPolicy: Always
-    nodeSelector: {}
-    port: 32400
+    pullPolicy: Always
+
   service:
-    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+    type: ClusterIP
     port: 32400
-    nodePort: # Only required if service type is NodePort
+    nodePort:    # Only used when type=NodePort
+
   ingress:
     enabled: true
     annotations: {}
     tls:
       enabled: false
       secretName: ""
+
+  persistence:
+    existingClaim: ""
+    size: 200Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
   resources:
     requests:
       cpu: "150m"
@@ -85,83 +111,97 @@ plex:
     limits:
       cpu: "4"
       memory: "16Gi"
-  volume: 
-    name: plex-config
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    accessModes: "ReadWriteOnce"
-    storage: "200Gi"
-    storageClassName: ""
-  # We mount a memory volume to /transcode to speed up transcoding and save wear on the disk
-  extraVolumes: 
-    - name: plex-transcode
-      emptyDir:
-        sizeLimit: "14Gi"
-        medium: Memory
-  extraVolumeMounts:
-    - name: plex-transcode
-      mountPath: /transcode
-  tautulli:
+
+  nodeSelector: {}
+
+  # Memory-backed transcode volume
+  transcode:
     enabled: true
-    container:
-      image: ghcr.io/tautulli/tautulli
-      tag: v2.16.0
-      imagePullPolicy: Always
-      nodeSelector: {}
-      port: 8181
-    service:
-      type: ClusterIP # ClusterIP, NodePort, LoadBalancer
-      port: 8181
-      nodePort: # Only required if service type is NodePort
-    ingress:
-      enabled: true
-      path: /tautulli
-      annotations: {}
-      tls:
-        enabled: false
-        secretName: ""
-    resources:
-      requests:
-        cpu: "150m"
-        memory: "96Mi"
-      limits:
-        cpu: "250m"
-        memory: "512Mi"
-    volume:
-      name: tautulli-config
-      annotations: 
-        # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-        helm.sh/resource-policy: keep
-      accessModes: "ReadWriteOnce"
-      storage: "10Gi"
-      storageClassName: ""
-    extraVolumes: {}
-    extraVolumeMounts: {}
+    sizeLimit: "14Gi"
 
+  extraVolumes: []
+  extraVolumeMounts: []
 
-prowlarr:
+# ──────────────────────────────────────────────────────────────────────────────
+# Tautulli (Plex monitoring — promoted to top-level)
+# ──────────────────────────────────────────────────────────────────────────────
+tautulli:
   enabled: true
-  # hexadecimal api key for prowlarr. Change this value before deploying to production
-  apiKey: "2ed654b2c1be4f51bde5981e70687b27"
-  instanceName: Prowlarr
-  container:
-    image: ghcr.io/home-operations/prowlarr
-    tag: rolling
-    imagePullPolicy: Always
-    nodeSelector: {}
-    port: 9696
+
+  image:
+    repository: ghcr.io/tautulli/tautulli
+    tag: v2.16.0
+    pullPolicy: Always
+
   service:
-    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
-    port: 9696
-    nodePort: # Only required if service type is NodePort
+    type: ClusterIP
+    port: 8181
+    nodePort:
+
   ingress:
     enabled: true
+    path: /tautulli
     annotations: {}
-    path: /prowlarr
     tls:
       enabled: false
       secretName: ""
+
+  persistence:
+    existingClaim: ""
+    size: 10Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
+  resources:
+    requests:
+      cpu: "150m"
+      memory: "96Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+  nodeSelector: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Prowlarr (indexer manager)
+# ──────────────────────────────────────────────────────────────────────────────
+prowlarr:
+  enabled: true
+  apiKey: "2ed654b2c1be4f51bde5981e70687b27"
+  instanceName: Prowlarr
+
+  image:
+    repository: ghcr.io/home-operations/prowlarr
+    tag: rolling
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 9696
+    nodePort:
+
+  ingress:
+    enabled: true
+    path: /prowlarr
+    annotations: {}
+    tls:
+      enabled: false
+      secretName: ""
+
+  persistence:
+    existingClaim: ""
+    size: 10Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
   resources:
     requests:
       cpu: "50m"
@@ -169,163 +209,67 @@ prowlarr:
     limits:
       cpu: "500m"
       memory: "1Gi"
-  volume:
-    name: prowlarr-config
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    accessModes: "ReadWriteOnce"
-    storage: "10Gi"
-    storageClassName: ""
-  extraVolumes: {}
-  extraVolumeMounts: {}
+
+  nodeSelector: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  # Byparr/FlareSolverr sidecar for CAPTCHA solving
   flaresolverr:
     enabled: true
-    container:
-      image: ghcr.io/thephaseless/byparr
+    image:
+      repository: ghcr.io/thephaseless/byparr
       tag: latest
-      imagePullPolicy: Always
-      nodeSelector: {}
-      port: 8191
-    service:
-      type: ClusterIP # ClusterIP, NodePort, LoadBalancer
-      port: 8191
-      nodePort: # Only required if service type is NodePort
-    resources:
-      requests:
-        cpu: "50m"
-        memory: "128Mi"
-      limits:
-        cpu: "150m"
-        memory: "1024Mi"
+      pullPolicy: Always
+    port: 8191
+    nodeSelector: {}
+
   metrics:
-    image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.3.0
-    imagePullPolicy: IfNotPresent
     enabled: true
+    image:
+      repository: ghcr.io/onedr0p/exportarr
+      tag: v2.3.0
+      pullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
-    flaresolvarrMetrics:
-      port: 9191
+    flaresolverrMetricsPort: 9191
     backfill: true
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Radarr (movies)
+# ──────────────────────────────────────────────────────────────────────────────
 radarr:
   enabled: true
-  # hexadecimal api key for radarr. Change this value before deploying to production
-  apiKey: "6a531c2df0144dbaa270892fba460d21" 
+  apiKey: "6a531c2df0144dbaa270892fba460d21"
   instanceName: Radarr
-  # apiSecret: xxx
-  container:
-    image: ghcr.io/home-operations/radarr
+
+  image:
+    repository: ghcr.io/home-operations/radarr
     tag: rolling
-    imagePullPolicy: Always
-    nodeSelector: {}
-    port: 7878
+    pullPolicy: Always
+
   service:
-    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
+    type: ClusterIP
     port: 7878
-    nodePort: # Only required if service type is NodePort
+    nodePort:
+
   ingress:
     enabled: true
-    annotations: {}
     path: /radarr
-    tls:
-      enabled: false
-      secretName: ""
-  resources: 
-    requests:
-      cpu: "500m"
-      memory: "512Mi"
-    limits:
-      cpu: "1"
-      memory: "4Gi"
-  volume:
-    name: radarr-config
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    accessModes: "ReadWriteOnce"
-    storage: "10Gi"
-    storageClassName: ""
-  extraVolumes: {}
-  extraVolumeMounts: {}
-  metrics:
-    enabled: true
-    image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.3.0
-    imagePullPolicy: IfNotPresent
-    serviceMonitor: true
-    port: 9090
-
-sonarr:
-  enabled: true
-  # hexadecimal api key for sonarr. Change this value before deploying to production
-  apiKey: "438c234cca4e4784b1eecfc12ae69f33"
-  instanceName: Sonarr
-  container:
-    image: ghcr.io/home-operations/sonarr
-    tag: rolling
-    imagePullPolicy: Always
-    nodeSelector: {}
-    port: 8989
-  service:
-    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
-    port: 8989
-    nodePort: # Only required if service type is NodePort
-  ingress:
-    enabled: true
     annotations: {}
-    path: /sonarr
     tls:
       enabled: false
       secretName: ""
-  resources: 
-    requests:
-      cpu: "500m"
-      memory: "512Mi"
-    limits:
-      cpu: "1"
-      memory: "4Gi"
-  volume: 
-    name: sonarr-config
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    accessModes: "ReadWriteOnce"
-    storage: "10Gi"
-    storageClassName: ""
-  extraVolumes: {}
-  extraVolumeMounts: {}
-  metrics:
-    enabled: true
-    image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.3.0
-    imagePullPolicy: IfNotPresent
-    serviceMonitor: true
-    port: 9090
 
-lidarr:
-  enabled: true
-  # hexadecimal api key for lidarr. Change this value before deploying to production
-  apiKey: "438c234cca4e4784b1eabcde2ae69f33"
-  instanceName: Lidarr
-  container:
-    image: ghcr.io/crutonjohn/lidarr-plugins
-    tag: rolling
-    imagePullPolicy: Always
-    nodeSelector: {}
-    port: 8686
-  service:
-    type: ClusterIP # ClusterIP, NodePort, LoadBalancer
-    port: 8686
-    nodePort: # Only required if service type is NodePort
-  ingress:
-    enabled: true
-    annotations: {}
-    path: /lidarr
-    tls:
-      enabled: false
-      secretName: ""
+  persistence:
+    existingClaim: ""
+    size: 10Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
   resources:
     requests:
       cpu: "500m"
@@ -333,116 +277,270 @@ lidarr:
     limits:
       cpu: "1"
       memory: "4Gi"
-  volume:
-    name: lidarr-config
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    accessModes: "ReadWriteOnce"
-    storage: "10Gi"
-    storageClassName: ""
-  extraVolumes: {}
-  extraVolumeMounts: {}
+
+  nodeSelector: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  # Media sub-paths this service needs from sharedStorage
+  mediaSubPaths:
+    - mountPath: /downloads
+      subPath: downloads
+    - mountPath: /movies
+      subPath: media/movies
+
   metrics:
-    image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.3.0
-    imagePullPolicy: IfNotPresent
     enabled: true
+    image:
+      repository: ghcr.io/onedr0p/exportarr
+      tag: v2.3.0
+      pullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
 
-transmission:
-  enabled: false
-  container:
-    image: ghcr.io/home-operations/transmission
+# ──────────────────────────────────────────────────────────────────────────────
+# Sonarr (TV shows)
+# ──────────────────────────────────────────────────────────────────────────────
+sonarr:
+  enabled: true
+  apiKey: "438c234cca4e4784b1eecfc12ae69f33"
+  instanceName: Sonarr
+
+  image:
+    repository: ghcr.io/home-operations/sonarr
     tag: rolling
-    imagePullPolicy: IfNotPresent
-    nodeSelector: {}
-    port:
-      rpc: 9091
-      peer: 11413
+    pullPolicy: Always
+
   service:
-    rpc:
-      type: ClusterIP   # ClusterIP, NodePort, LoadBalancer
-      port: 9091
-      nodePort:  # Only required if service type is NodePort
-    peer:
-      type: LoadBalancer   # ClusterIP, NodePort, LoadBalancer
-      port: 11413       # Port for the peer service to listen on. Make sure this port is open on your cluster firewall/ingress
-      nodePort:   # Only required if service type is NodePort
-      nodePortUDP:  # Only required if service type is NodePort
+    type: ClusterIP
+    port: 8989
+    nodePort:
+
   ingress:
     enabled: true
+    path: /sonarr
     annotations: {}
-    path: /transmission
     tls:
       enabled: false
       secretName: ""
+
+  persistence:
+    existingClaim: ""
+    size: 10Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
+
+  nodeSelector: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  mediaSubPaths:
+    - mountPath: /downloads
+      subPath: downloads
+    - mountPath: /tv
+      subPath: media/tv
+
+  metrics:
+    enabled: true
+    image:
+      repository: ghcr.io/onedr0p/exportarr
+      tag: v2.3.0
+      pullPolicy: IfNotPresent
+    serviceMonitor: true
+    port: 9090
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Lidarr (music)
+# ──────────────────────────────────────────────────────────────────────────────
+lidarr:
+  enabled: true
+  apiKey: "438c234cca4e4784b1eabcde2ae69f33"
+  instanceName: Lidarr
+
+  image:
+    repository: ghcr.io/crutonjohn/lidarr-plugins
+    tag: rolling
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 8686
+    nodePort:
+
+  ingress:
+    enabled: true
+    path: /lidarr
+    annotations: {}
+    tls:
+      enabled: false
+      secretName: ""
+
+  persistence:
+    existingClaim: ""
+    size: 10Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
+
+  nodeSelector: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  mediaSubPaths:
+    - mountPath: /downloads
+      subPath: downloads
+    - mountPath: /music
+      subPath: media/music
+
+  metrics:
+    enabled: true
+    image:
+      repository: ghcr.io/onedr0p/exportarr
+      tag: v2.3.0
+      pullPolicy: IfNotPresent
+    serviceMonitor: true
+    port: 9090
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Transmission (torrent client — disabled by default)
+# ──────────────────────────────────────────────────────────────────────────────
+transmission:
+  enabled: false
+
+  image:
+    repository: ghcr.io/home-operations/transmission
+    tag: rolling
+    pullPolicy: IfNotPresent
+
+  service:
+    rpc:
+      type: ClusterIP
+      port: 9091
+      nodePort:
+    peer:
+      type: LoadBalancer
+      port: 11413
+      nodePort:
+      nodePortUDP:
+
+  ingress:
+    enabled: true
+    path: /transmission
+    annotations: {}
+    tls:
+      enabled: false
+      secretName: ""
+
   config:
     auth:
       enabled: true
       username: "admin"
       password: "changeme1234"
-  resources: 
+
+  persistence:
+    existingClaim: ""
+    size: 1Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
+  resources:
     requests:
       cpu: "100m"
       memory: "320Mi"
     limits:
       cpu: "1"
       memory: "4Gi"
-  volume: 
-    name: transmission-config
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    accessModes: "ReadWriteOnce"
-    storage: "1Gi"
-    storageClassName: ""
-  extraVolumes: {}
-  extraVolumeMounts: {}
+
+  nodeSelector: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+
   metrics:
     enabled: true
-    image: docker.io/evanofslack/transmission-exporter
-    imageTag: latest
-    imagePullPolicy: Always
+    image:
+      repository: docker.io/evanofslack/transmission-exporter
+      tag: latest
+      pullPolicy: Always
     serviceMonitor: true
     port: 19091
 
+# ──────────────────────────────────────────────────────────────────────────────
+# qBittorrent (torrent client)
+# ──────────────────────────────────────────────────────────────────────────────
 qbittorrent:
   enabled: true
-  container:
-    image: ghcr.io/home-operations/qbittorrent
+
+  image:
+    repository: ghcr.io/home-operations/qbittorrent
     tag: rolling
-    imagePullPolicy: Always
-    nodeSelector: {}
-    port: 
-      webui: 8080
-      peer: 11413
+    pullPolicy: Always
+
   service:
     webui:
-      type: ClusterIP   # ClusterIP, NodePort, LoadBalancer
+      type: ClusterIP
       port: 8080
-      nodePort:  # Only required if service type is NodePort
+      nodePort:
     peer:
-      type: LoadBalancer   # ClusterIP, NodePort, LoadBalancer
-      port: 11413       # Port for the peer service to listen on. Make sure this port is open on your cluster firewall/ingress
-      nodePort:   # Only required if service type is NodePort
-      nodePortUDP:  # Only required if service type is NodePort
-    # IP family policy for services [ 'SingleStack', 'PreferDualStack', 'RequireDualStack' ]
-    ipFamilyPolicy: PreferDualStack
-    # IP families for services : you can manualy specify the IP families you want to use for your services ['IPv4', 'IPv6']
-    ipFamilies: []
+      type: LoadBalancer
+      port: 11413
+      nodePort:
+      nodePortUDP:
+      ipFamilyPolicy: PreferDualStack
+      ipFamilies:
+        - IPv6
+        - IPv4
+
   ingress:
     enabled: true
-    annotations: {}
     path: /
+    annotations: {}
     tls:
       enabled: false
       secretName: ""
+
   config:
     auth:
       username: "admin"
       password: "changeme1234"
+
+  persistence:
+    existingClaim: ""
+    size: 10Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
+  cache:
+    enabled: false
+    size: "20Gi"
+    storageClassName: ""
+
   resources:
     requests:
       cpu: "500m"
@@ -450,26 +548,17 @@ qbittorrent:
     limits:
       cpu: "4"
       memory: "24Gi"
-  volume:
-    name: qbittorrent-config
-    annotations: 
-      # by default the pv will not be deleted when the helm chart is uninstalled. You can change this to "delete" if you want the pv to be deleted.
-      helm.sh/resource-policy: keep
-    accessModes: "ReadWriteOnce"
-    storage: "10Gi"
-    storageClassName: ""
-  cache:
-    # Enable cache for qBittorrent for faster downloads. Use fast storage for this.
-    enabled: false
-    size: "20Gi"
-    storageClassName: ""
-  extraVolumes: {}
-  extraVolumeMounts: {}
+
+  nodeSelector: {}
+  extraVolumes: []
+  extraVolumeMounts: []
+
   metrics:
     enabled: true
-    image: ghcr.io/caseyscarborough/qbittorrent-exporter
-    imageTag: v1.3.5
-    imagePullPolicy: IfNotPresent
+    image:
+      repository: ghcr.io/caseyscarborough/qbittorrent-exporter
+      tag: v1.3.5
+      pullPolicy: IfNotPresent
     serviceMonitor: true
     containerPort: 17871
     port: 9091

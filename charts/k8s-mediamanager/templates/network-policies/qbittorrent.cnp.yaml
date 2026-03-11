@@ -1,0 +1,71 @@
+{{- if .Values.qbittorrent.enabled }}
+---
+### QBITTORRENT — ingress from gateway + arr apps, egress to internet (peers + trackers)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-qbittorrent
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "qbittorrent") | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: qbittorrent
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: {{ .Values.qbittorrent.service.webui.port | quote }}
+              protocol: TCP
+    - fromEndpoints:
+        {{- if .Values.radarr.enabled }}
+        - matchLabels:
+            app: radarr
+        {{- end }}
+        {{- if .Values.sonarr.enabled }}
+        - matchLabels:
+            app: sonarr
+        {{- end }}
+        {{- if .Values.lidarr.enabled }}
+        - matchLabels:
+            app: lidarr
+        {{- end }}
+      toPorts:
+        - ports:
+            - port: {{ .Values.qbittorrent.service.webui.port | quote }}
+              protocol: TCP
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: {{ .Values.qbittorrent.service.peer.port | quote }}
+              protocol: TCP
+            - port: {{ .Values.qbittorrent.service.peer.port | quote }}
+              protocol: UDP
+    {{- if .Values.qbittorrent.metrics.enabled }}
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: {{ .Values.qbittorrent.metrics.containerPort | quote }}
+              protocol: TCP
+    {{- end }}
+  egress:
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: {{ .Values.qbittorrent.service.peer.port | quote }}
+              protocol: TCP
+            - port: {{ .Values.qbittorrent.service.peer.port | quote }}
+              protocol: UDP
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+{{- end }}

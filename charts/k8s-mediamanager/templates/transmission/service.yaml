@@ -1,0 +1,45 @@
+{{- if .Values.transmission.enabled }}
+{{- $extraPorts := list }}
+{{- if .Values.transmission.metrics.enabled }}
+{{- $extraPorts = list (dict "name" "metrics" "port" .Values.transmission.metrics.port) }}
+{{- end }}
+{{- include "k8s-mediamanager.service" (dict
+  "context" .
+  "component" "transmission"
+  "serviceType" .Values.transmission.service.rpc.type
+  "port" .Values.transmission.service.rpc.port
+  "nodePort" .Values.transmission.service.rpc.nodePort
+  "extraPorts" $extraPorts
+) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission-peer
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "transmission") | nindent 4 }}
+spec:
+  ipFamilyPolicy: {{ .Values.global.ipFamilyPolicy }}
+  {{- with .Values.global.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  type: {{ .Values.transmission.service.peer.type }}
+  ports:
+    - name: trans-peer-tcp
+      port: {{ .Values.transmission.service.peer.port }}
+      targetPort: trans-peer-tcp
+      protocol: TCP
+      {{- if .Values.transmission.service.peer.nodePort }}
+      nodePort: {{ .Values.transmission.service.peer.nodePort }}
+      {{- end }}
+    - name: trans-peer-udp
+      port: {{ .Values.transmission.service.peer.port }}
+      targetPort: trans-peer-udp
+      protocol: UDP
+      {{- if .Values.transmission.service.peer.nodePortUDP }}
+      nodePort: {{ .Values.transmission.service.peer.nodePortUDP }}
+      {{- end }}
+  selector:
+    {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "transmission") | nindent 4 }}
+{{- end }}

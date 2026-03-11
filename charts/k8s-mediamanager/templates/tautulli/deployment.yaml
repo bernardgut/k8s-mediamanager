@@ -1,0 +1,115 @@
+{{- if .Values.tautulli.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "tautulli") | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "tautulli") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "tautulli") | nindent 8 }}
+        app: tautulli
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        fsGroup: {{ .Values.global.pgid }}
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: tautulli-config
+          image: "{{ .Values.global.initImage.repository }}:{{ .Values.global.initImage.tag }}"
+          imagePullPolicy: {{ .Values.global.initImage.pullPolicy }}
+          command: ["/init-tautulli/init-tautulli.sh"]
+          volumeMounts:
+            - name: init-tautulli-cm
+              mountPath: /init-tautulli
+            - name: tautulli-config
+              mountPath: /tautulli-config
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.puid }}
+            runAsGroup: {{ .Values.global.pgid }}
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+      containers:
+        - name: tautulli
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
+                - DAC_OVERRIDE
+          env:
+            {{- include "k8s-mediamanager.commonEnv" . | nindent 12 }}
+            - name: TAUTULLI_DOCKER
+              value: "True"
+          image: "{{ .Values.tautulli.image.repository }}:{{ .Values.tautulli.image.tag }}"
+          imagePullPolicy: {{ .Values.tautulli.image.pullPolicy }}
+          startupProbe:
+            exec:
+              command:
+                - curl
+                - -ILfs
+                - http://127.0.0.1:{{ .Values.tautulli.service.port }}{{ .Values.tautulli.ingress.path }}/status
+            failureThreshold: 60
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -ILfs
+                - http://127.0.0.1:{{ .Values.tautulli.service.port }}{{ .Values.tautulli.ingress.path }}/status
+            timeoutSeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - curl
+                - -ILfs
+                - http://127.0.0.1:{{ .Values.tautulli.service.port }}{{ .Values.tautulli.ingress.path }}/status
+            timeoutSeconds: 10
+            periodSeconds: 15
+          ports:
+            - name: tautulli-port
+              containerPort: {{ .Values.tautulli.service.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: tautulli-config
+              mountPath: /config
+          {{- with .Values.tautulli.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: tautulli-config
+          persistentVolumeClaim:
+            claimName: {{ include "k8s-mediamanager.persistenceClaimName" (dict "context" . "component" "tautulli" "persistence" .Values.tautulli.persistence) }}
+        - name: init-tautulli-cm
+          configMap:
+            defaultMode: 493
+            name: {{ include "k8s-mediamanager.fullname" . }}-init-tautulli
+      {{- with .Values.tautulli.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

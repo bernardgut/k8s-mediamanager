@@ -1,0 +1,113 @@
+{{- if .Values.transmission.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "transmission") | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "transmission") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "transmission") | nindent 8 }}
+        app: transmission
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- include "k8s-mediamanager.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: transmission
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "k8s-mediamanager.fullname" . }}-transmission-config
+          image: "{{ .Values.transmission.image.repository }}:{{ .Values.transmission.image.tag }}"
+          imagePullPolicy: {{ .Values.transmission.image.pullPolicy }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.transmission.service.rpc.port }}
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.transmission.service.rpc.port }}
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+          ports:
+            - name: trans-port
+              containerPort: {{ .Values.transmission.service.rpc.port }}
+              protocol: TCP
+            - name: trans-peer-tcp
+              containerPort: {{ .Values.transmission.service.peer.port }}
+              protocol: TCP
+            - name: trans-peer-udp
+              containerPort: {{ .Values.transmission.service.peer.port }}
+              protocol: UDP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /downloads
+              subPath: {{ .Values.sharedStorage.subPaths.downloads | quote }}
+            {{- with .Values.transmission.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.transmission.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.transmission.metrics.enabled }}
+        - name: metrics
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          image: "{{ .Values.transmission.metrics.image.repository }}:{{ .Values.transmission.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.transmission.metrics.image.pullPolicy }}
+          env:
+            - name: WEB_PATH
+              value: /metrics
+            - name: WEB_PORT
+              value: "{{ .Values.transmission.metrics.port }}"
+            - name: TRANSMISSION_ADD
+              value: "http://{{ include "k8s-mediamanager.fullname" . }}-transmission:{{ .Values.transmission.service.rpc.port }}{{ .Values.transmission.ingress.path }}"
+            - name: TRANSMISSION_USERNAME
+              value: {{ .Values.transmission.config.auth.username | quote }}
+            - name: TRANSMISSION_PASSWORD
+              value: {{ .Values.transmission.config.auth.password | quote }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.transmission.metrics.port }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 30
+        {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.sharedStorage.existingClaim }}
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ include "k8s-mediamanager.persistenceClaimName" (dict "context" . "component" "transmission" "persistence" .Values.transmission.persistence) }}
+        {{- with .Values.transmission.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.transmission.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

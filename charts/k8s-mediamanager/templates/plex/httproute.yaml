@@ -1,0 +1,11 @@
+{{- if and .Values.plex.enabled .Values.plex.ingress.enabled .Values.gateway.public.enabled }}
+{{- include "k8s-mediamanager.httproute" (dict
+  "context" .
+  "component" "plex"
+  "gatewayName" .Values.gateway.public.name
+  "gatewayNamespace" .Values.gateway.public.namespace
+  "hostname" .Values.gateway.public.hostname
+  "path" "/"
+  "port" .Values.plex.service.port
+) }}
+{{- end }}

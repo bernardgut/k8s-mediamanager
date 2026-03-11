@@ -1,0 +1,64 @@
+{{- if .Values.lidarr.enabled }}
+---
+### LIDARR — ingress from gateway + prowlarr, egress to qbittorrent + metadata APIs
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-lidarr
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "lidarr") | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: lidarr
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: {{ .Values.lidarr.service.port | quote }}
+              protocol: TCP
+    {{- if .Values.prowlarr.enabled }}
+    - fromEndpoints:
+        - matchLabels:
+            app: prowlarr
+      toPorts:
+        - ports:
+            - port: {{ .Values.lidarr.service.port | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if .Values.lidarr.metrics.enabled }}
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: {{ .Values.lidarr.metrics.port | quote }}
+              protocol: TCP
+    {{- end }}
+  egress:
+    {{- if .Values.qbittorrent.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            app: qbittorrent
+      toPorts:
+        - ports:
+            - port: {{ .Values.qbittorrent.service.webui.port | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if .Values.prowlarr.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            app: prowlarr
+      toPorts:
+        - ports:
+            - port: {{ .Values.prowlarr.service.port | quote }}
+              protocol: TCP
+    {{- end }}
+    - toFQDNs:
+        - matchPattern: "*.musicbrainz.org"
+        - matchPattern: "api.lidarr.audio"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+{{- end }}

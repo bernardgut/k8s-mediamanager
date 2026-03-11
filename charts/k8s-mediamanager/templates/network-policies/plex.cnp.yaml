@@ -1,0 +1,39 @@
+{{- if .Values.plex.enabled }}
+---
+### PLEX — ingress from gateway, egress to internet (metadata APIs) + streaming
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-plex
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "plex") | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: plex
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: {{ .Values.plex.service.port | quote }}
+              protocol: TCP
+  egress:
+    - toFQDNs:
+        - matchPattern: "*.plex.tv"
+        - matchPattern: "*.thetvdb.com"
+        - matchPattern: "*.themoviedb.org"
+        - matchPattern: "*.plex.direct"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: {{ .Values.plex.service.port | quote }}
+              protocol: TCP
+{{- end }}

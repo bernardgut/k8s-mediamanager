@@ -1,2 +1,4 @@
-k8s-mediamanager successfully installed!
-1. Get the application URL by running these commands
+k8s-mediamanager has been installed.
+
+Enabled services will be available via Gateway API HTTPRoutes.
+Check the gateway configuration under 'gateway.restricted' and 'gateway.public' values.

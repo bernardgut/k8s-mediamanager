@@ -1,0 +1,11 @@
+{{- if or (.Values.prowlarr.metrics.enabled) (.Values.sonarr.metrics.enabled) (.Values.radarr.metrics.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: exportarr-dashboard
+  labels:
+    grafana_dashboard: "1"
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "dashboards") | nindent 4 }}
+data:
+{{ (.Files.Glob "dashboards/exportarr-dashboard.json").AsConfig | indent 2 }}
+{{- end }}

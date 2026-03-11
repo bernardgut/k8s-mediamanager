@@ -1,0 +1,11 @@
+{{- if and .Values.tautulli.enabled .Values.tautulli.ingress.enabled .Values.gateway.restricted.enabled }}
+{{- include "k8s-mediamanager.httproute" (dict
+  "context" .
+  "component" "tautulli"
+  "gatewayName" .Values.gateway.restricted.name
+  "gatewayNamespace" .Values.gateway.restricted.namespace
+  "hostname" .Values.gateway.restricted.hostname
+  "path" .Values.tautulli.ingress.path
+  "port" .Values.tautulli.service.port
+) }}
+{{- end }}

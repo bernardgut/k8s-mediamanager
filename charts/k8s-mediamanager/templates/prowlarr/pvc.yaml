@@ -1,0 +1,3 @@
+{{- if .Values.prowlarr.enabled }}
+{{- include "k8s-mediamanager.pvc" (dict "context" . "component" "prowlarr" "persistence" .Values.prowlarr.persistence) }}
+{{- end }}

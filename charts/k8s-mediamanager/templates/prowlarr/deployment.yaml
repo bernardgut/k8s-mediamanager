@@ -1,0 +1,44 @@
+{{- if .Values.prowlarr.enabled }}
+{{- $flaresolverrContainers := list }}
+{{- if .Values.prowlarr.flaresolverr.enabled }}
+{{- $flaresolverrContainers = list (dict
+  "name" "flaresolverr"
+  "securityContext" (dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")))
+  "image" (printf "%s:%s" .Values.prowlarr.flaresolverr.image.repository .Values.prowlarr.flaresolverr.image.tag)
+  "imagePullPolicy" .Values.prowlarr.flaresolverr.image.pullPolicy
+  "env" (list
+    (dict "name" "TZ" "value" .Values.global.timezone)
+    (dict "name" "PORT" "value" (.Values.prowlarr.flaresolverr.port | toString))
+    (dict "name" "HOST" "value" "::")
+    (dict "name" "PROMETHEUS_ENABLED" "value" (.Values.prowlarr.metrics.enabled | toString))
+  )
+  "ports" (list
+    (dict "name" "flaresolverr" "containerPort" .Values.prowlarr.flaresolverr.port)
+    (dict "name" "metrics-fls" "containerPort" .Values.prowlarr.metrics.flaresolverrMetricsPort)
+  )
+  "livenessProbe" (dict "httpGet" (dict "path" "/" "port" "flaresolverr") "initialDelaySeconds" 10 "timeoutSeconds" 15)
+  "readinessProbe" (dict "httpGet" (dict "path" "/" "port" "flaresolverr") "initialDelaySeconds" 15 "timeoutSeconds" 10)
+  "volumeMounts" (list
+    (dict "name" "byparr-cache" "mountPath" "/var/cache/uv")
+    (dict "name" "byparr-tmp" "mountPath" "/tmp")
+  )
+) }}
+{{- end }}
+{{- $extraVolumes := list }}
+{{- if .Values.prowlarr.flaresolverr.enabled }}
+{{- $extraVolumes = list
+  (dict "name" "byparr-cache" "emptyDir" (dict "medium" "Memory" "sizeLimit" "512Mi"))
+  (dict "name" "byparr-tmp" "emptyDir" (dict "medium" "Memory" "sizeLimit" "256Mi"))
+}}
+{{- end }}
+{{- $metricsExtraEnv := list (dict "name" "PROWLARR__BACKFILL" "value" "true") }}
+{{- include "k8s-mediamanager.arr.deployment" (dict
+  "context" .
+  "component" "prowlarr"
+  "values" .Values.prowlarr
+  "extraContainers" $flaresolverrContainers
+  "extraVolumes" $extraVolumes
+  "metricsExtraEnv" $metricsExtraEnv
+) }}
+{{- end }}
+

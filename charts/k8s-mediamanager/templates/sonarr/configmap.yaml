@@ -1,0 +1,3 @@
+{{- if .Values.sonarr.enabled }}
+{{- include "k8s-mediamanager.arr.configmap" (dict "context" . "component" "sonarr" "values" .Values.sonarr) }}
+{{- end }}

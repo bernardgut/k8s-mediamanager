@@ -1,0 +1,32 @@
+{{- if .Values.qbittorrent.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-torrent
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "qbittorrent") | nindent 4 }}
+spec:
+  ipFamilyPolicy: {{ .Values.qbittorrent.service.peer.ipFamilyPolicy }}
+  {{- with .Values.qbittorrent.service.peer.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  type: {{ .Values.qbittorrent.service.peer.type }}
+  ports:
+    - name: peer
+      port: {{ .Values.qbittorrent.service.peer.port }}
+      targetPort: peer
+      protocol: TCP
+      {{- if .Values.qbittorrent.service.peer.nodePort }}
+      nodePort: {{ .Values.qbittorrent.service.peer.nodePort }}
+      {{- end }}
+    - name: peer-udp
+      port: {{ .Values.qbittorrent.service.peer.port }}
+      targetPort: peer-udp
+      protocol: UDP
+      {{- if .Values.qbittorrent.service.peer.nodePortUDP }}
+      nodePort: {{ .Values.qbittorrent.service.peer.nodePortUDP }}
+      {{- end }}
+  selector:
+    {{- include "k8s-mediamanager.serviceSelectorLabels" (dict "context" . "component" "qbittorrent") | nindent 4 }}
+{{- end }}

@@ -1,0 +1,10 @@
+{{- if .Values.radarr.enabled }}
+{{- include "k8s-mediamanager.service" (dict
+  "context" .
+  "component" "radarr"
+  "serviceType" .Values.radarr.service.type
+  "port" .Values.radarr.service.port
+  "nodePort" .Values.radarr.service.nodePort
+  "extraPorts" (ternary (list (dict "name" "metrics" "port" .Values.radarr.metrics.port)) list .Values.radarr.metrics.enabled)
+) }}
+{{- end }}

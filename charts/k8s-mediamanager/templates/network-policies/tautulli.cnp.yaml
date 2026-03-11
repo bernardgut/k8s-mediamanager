@@ -1,0 +1,42 @@
+{{- if .Values.tautulli.enabled }}
+---
+### TAUTULLI — ingress from gateway, egress to plex + plex.tv + github
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-tautulli
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "tautulli") | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: tautulli
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: {{ .Values.tautulli.service.port | quote }}
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: plex
+      toPorts:
+        - ports:
+            - port: {{ .Values.plex.service.port | quote }}
+              protocol: TCP
+    - toFQDNs:
+        - matchPattern: "*.plex.tv"
+        - matchName: "plex.tv"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: "api.github.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+{{- end }}

@@ -1,0 +1,11 @@
+{{- if and .Values.sonarr.enabled .Values.sonarr.ingress.enabled .Values.gateway.restricted.enabled }}
+{{- include "k8s-mediamanager.httproute" (dict
+  "context" .
+  "component" "sonarr"
+  "gatewayName" .Values.gateway.restricted.name
+  "gatewayNamespace" .Values.gateway.restricted.namespace
+  "hostname" .Values.gateway.restricted.hostname
+  "path" .Values.sonarr.ingress.path
+  "port" .Values.sonarr.service.port
+) }}
+{{- end }}

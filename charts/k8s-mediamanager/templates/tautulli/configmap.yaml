@@ -1,0 +1,42 @@
+{{- if .Values.tautulli.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-init-tautulli
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "tautulli") | nindent 4 }}
+data:
+  config.ini: |
+    [General]
+    http_host = 0.0.0.0
+    http_port = {{ .Values.tautulli.service.port }}
+    http_root = {{ .Values.tautulli.ingress.path }}
+    pms_ip = {{ include "k8s-mediamanager.fullname" . }}-plex
+    pms_port = {{ .Values.plex.service.port }}
+    pms_url = "http://{{ include "k8s-mediamanager.fullname" . }}-plex:{{ .Values.plex.service.port }}"
+    launch_browser = 0
+  init-tautulli.sh: |
+    #!/bin/sh
+    echo "### Initializing config"
+    if [ ! -f /tautulli-config/config.ini ]; then
+      cp -n /init-tautulli/config.ini /tautulli-config/config.ini
+      echo "### No configuration found, initialized with default settings ###"
+    fi
+    # Ensure http_host is set to 0.0.0.0 for CherryPy binding
+    if grep -q 'http_host' /tautulli-config/config.ini; then
+      sed -i 's/^http_host = .*/http_host = 0.0.0.0/' /tautulli-config/config.ini
+    fi
+    # Ensure pms_ip points to the plex service (not localhost)
+    PMS_SVC="{{ include "k8s-mediamanager.fullname" . }}-plex"
+    if grep -q 'pms_ip' /tautulli-config/config.ini; then
+      sed -i "s/^pms_ip = .*/pms_ip = ${PMS_SVC}/" /tautulli-config/config.ini
+    fi
+    if grep -qE '^pms_url = ' /tautulli-config/config.ini; then
+      sed -i "s|^pms_url = .*|pms_url = http://${PMS_SVC}:{{ .Values.plex.service.port }}|" /tautulli-config/config.ini
+    fi
+    # Disable blocking network calls during startup (blocked by CNP)
+    sed -i 's/^check_github_on_startup = .*/check_github_on_startup = 0/' /tautulli-config/config.ini
+    sed -i 's/^pms_url_manual = .*/pms_url_manual = 1/' /tautulli-config/config.ini
+    sed -i 's/^system_analytics = .*/system_analytics = 0/' /tautulli-config/config.ini
+    echo "### Config initialized ###"
+{{- end }}

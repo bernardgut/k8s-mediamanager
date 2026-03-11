@@ -1,0 +1,3 @@
+{{- if .Values.radarr.enabled }}
+{{- include "k8s-mediamanager.pvc" (dict "context" . "component" "radarr" "persistence" .Values.radarr.persistence) }}
+{{- end }}
