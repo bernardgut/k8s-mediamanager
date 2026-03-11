@@ -39,7 +39,7 @@ data:
       <InstanceName>{{ .Values.radarr.instanceName }}</InstanceName>
     </Config>
   init-radarr.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /radarr-config/config.xml ]; then
       cp -n /init-radarr/config.xml /radarr-config/config.xml
@@ -81,7 +81,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: config-radarr
-          image: docker.io/ubuntu:groovy
+          image: docker.io/alpine:3.20
           command: ["/init-radarr/init-radarr.sh"]
           volumeMounts:
             - mountPath: /init-radarr
@@ -90,15 +90,24 @@ spec:
               mountPath: /radarr-config
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
       containers:
         - name: radarr
           securityContext:
             runAsUser: {{ .Values.general.puid }}
             runAsGroup: {{ .Values.general.pgid }}
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -147,6 +156,7 @@ spec:
         - name: metrics
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -218,7 +228,6 @@ spec:
     {{ if .Values.general.ipFamilies }}
     {{- toYaml .Values.general.ipFamilies | nindent 4 }}
     {{- end }}
-  type: {{ .Values.plex.service.type }}
   type: {{ .Values.radarr.service.type }}
   ports:
     - port: {{ .Values.radarr.service.port }}
@@ -228,9 +237,9 @@ spec:
       nodePort: {{ .Values.radarr.service.nodePort }}
 {{ end }}
       name: radarr-port
-    {{- if .Values.sonarr.metrics.enabled }}
-    - port: {{ .Values.sonarr.metrics.port }}
-      targetPort: {{ .Values.sonarr.metrics.port }}
+    {{- if .Values.radarr.metrics.enabled }}
+    - port: {{ .Values.radarr.metrics.port }}
+      targetPort: {{ .Values.radarr.metrics.port }}
       protocol: TCP
       name: metrics
     {{- end }}
@@ -238,38 +247,31 @@ spec:
     app: radarr
 
 ---
-### INGRESS ###
+### HTTPROUTE ###
 {{ if .Values.radarr.ingress.enabled }}
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+{{- if .Values.general.gateway.restricted.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: {{ include "k8s-mediamanager.fullname" . }}-radarr
   labels:
     {{- include "k8s-mediamanager.labels" . | nindent 4 }}
     app: radarr
-  {{- with .Values.radarr.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 spec:
-{{- if .Values.radarr.ingress.tls.enabled }}
-  tls:
-    - hosts:
-        - {{ .Values.general.ingress_host | quote }}
-      secretName: {{ .Values.general.ingress_host }}-tls
-{{ end }}
-  ingressClassName: {{ .Values.general.ingress.ingressClassName }}
+  parentRefs:
+    - name: {{ .Values.general.gateway.restricted.name }}
+      namespace: {{ .Values.general.gateway.restricted.namespace }}
+  hostnames:
+    - {{ .Values.general.ingress_host | quote }}
   rules:
-    - host: {{ .Values.general.ingress_host | quote }}
-      http:
-        paths:
-          - path: {{ .Values.radarr.ingress.path }}
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "k8s-mediamanager.fullname" . }}-radarr
-                port:
-                  number: {{ .Values.radarr.service.port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.radarr.ingress.path }}
+      backendRefs:
+        - name: {{ include "k8s-mediamanager.fullname" . }}-radarr
+          port: {{ .Values.radarr.service.port }}
+{{- end }}
 {{ end }}
 ---
 {{ if .Values.radarr.metrics.serviceMonitor }}

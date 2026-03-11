@@ -45,6 +45,17 @@ general:
       downloads: downloads
   ingress:
     ingressClassName: ""
+  gateway:
+    # Shared restricted-home gateway (in cni namespace)
+    restricted:
+      enabled: false
+      name: "restricted-home-gateway"
+      namespace: "cni"
+    # Shared public gateway (in cni namespace)
+    public:
+      enabled: false
+      name: "public-gateway"
+      namespace: "cni"
 
 plex:
   enabled: true
@@ -95,7 +106,7 @@ plex:
     enabled: true
     container:
       image: ghcr.io/tautulli/tautulli
-      tag: latest
+      tag: v2.16.0
       imagePullPolicy: Always
       nodeSelector: {}
       port: 8181
@@ -171,7 +182,7 @@ prowlarr:
   flaresolverr:
     enabled: true
     container:
-      image: ghcr.io/flaresolverr/flaresolverr
+      image: ghcr.io/thephaseless/byparr
       tag: latest
       imagePullPolicy: Always
       nodeSelector: {}
@@ -189,7 +200,7 @@ prowlarr:
         memory: "1024Mi"
   metrics:
     image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.2.0
+    imageTag: v2.3.0
     imagePullPolicy: IfNotPresent
     enabled: true
     serviceMonitor: true
@@ -241,7 +252,7 @@ radarr:
   metrics:
     enabled: true
     image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.2.0
+    imageTag: v2.3.0
     imagePullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
@@ -288,7 +299,7 @@ sonarr:
   metrics:
     enabled: true
     image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.2.0
+    imageTag: v2.3.0
     imagePullPolicy: IfNotPresent
     serviceMonitor: true
     port: 9090
@@ -334,7 +345,7 @@ lidarr:
   extraVolumeMounts: {}
   metrics:
     image: ghcr.io/onedr0p/exportarr
-    imageTag: v2.2.0
+    imageTag: v2.3.0
     imagePullPolicy: IfNotPresent
     enabled: true
     serviceMonitor: true
@@ -446,6 +457,11 @@ qbittorrent:
       helm.sh/resource-policy: keep
     accessModes: "ReadWriteOnce"
     storage: "10Gi"
+    storageClassName: ""
+  cache:
+    # Enable cache for qBittorrent for faster downloads. Use fast storage for this.
+    enabled: false
+    size: "20Gi"
     storageClassName: ""
   extraVolumes: {}
   extraVolumeMounts: {}
