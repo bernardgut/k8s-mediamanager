@@ -1,0 +1,3 @@
+{{- if .Values.sonarr.enabled }}
+{{- include "k8s-mediamanager.pvc" (dict "context" . "component" "sonarr" "persistence" .Values.sonarr.persistence) }}
+{{- end }}

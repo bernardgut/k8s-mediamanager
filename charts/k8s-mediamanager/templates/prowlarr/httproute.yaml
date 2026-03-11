@@ -1,0 +1,11 @@
+{{- if and .Values.prowlarr.enabled .Values.prowlarr.ingress.enabled .Values.gateway.restricted.enabled }}
+{{- include "k8s-mediamanager.httproute" (dict
+  "context" .
+  "component" "prowlarr"
+  "gatewayName" .Values.gateway.restricted.name
+  "gatewayNamespace" .Values.gateway.restricted.namespace
+  "hostname" .Values.gateway.restricted.hostname
+  "path" .Values.prowlarr.ingress.path
+  "port" .Values.prowlarr.service.port
+) }}
+{{- end }}

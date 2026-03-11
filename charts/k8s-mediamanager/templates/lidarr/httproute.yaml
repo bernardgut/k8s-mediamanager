@@ -1,0 +1,11 @@
+{{- if and .Values.lidarr.enabled .Values.lidarr.ingress.enabled .Values.gateway.restricted.enabled }}
+{{- include "k8s-mediamanager.httproute" (dict
+  "context" .
+  "component" "lidarr"
+  "gatewayName" .Values.gateway.restricted.name
+  "gatewayNamespace" .Values.gateway.restricted.namespace
+  "hostname" .Values.gateway.restricted.hostname
+  "path" .Values.lidarr.ingress.path
+  "port" .Values.lidarr.service.port
+) }}
+{{- end }}

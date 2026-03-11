@@ -1,0 +1,82 @@
+{{- if .Values.prowlarr.enabled }}
+---
+### PROWLARR — ingress from gateway + arr apps, egress to internet (indexers)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-prowlarr
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "prowlarr") | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app: prowlarr
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: {{ .Values.prowlarr.service.port | quote }}
+              protocol: TCP
+    - fromEndpoints:
+        {{- if .Values.radarr.enabled }}
+        - matchLabels:
+            app: radarr
+        {{- end }}
+        {{- if .Values.sonarr.enabled }}
+        - matchLabels:
+            app: sonarr
+        {{- end }}
+        {{- if .Values.lidarr.enabled }}
+        - matchLabels:
+            app: lidarr
+        {{- end }}
+      toPorts:
+        - ports:
+            - port: {{ .Values.prowlarr.service.port | quote }}
+              protocol: TCP
+    {{- if .Values.prowlarr.metrics.enabled }}
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: {{ .Values.prowlarr.metrics.port | quote }}
+              protocol: TCP
+    {{- end }}
+  egress:
+    {{- if .Values.radarr.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            app: radarr
+      toPorts:
+        - ports:
+            - port: {{ .Values.radarr.service.port | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if .Values.sonarr.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            app: sonarr
+      toPorts:
+        - ports:
+            - port: {{ .Values.sonarr.service.port | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if .Values.lidarr.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            app: lidarr
+      toPorts:
+        - ports:
+            - port: {{ .Values.lidarr.service.port | quote }}
+              protocol: TCP
+    {{- end }}
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+{{- end }}

@@ -1,0 +1,38 @@
+{{/*
+  Default-deny and allow-DNS CiliumNetworkPolicies
+  These apply to all endpoints in the namespace.
+*/}}
+---
+### DEFAULT DENY (namespace-wide)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-default-deny
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "network-policy") | nindent 4 }}
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+
+---
+### ALLOW DNS (all pods)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-allow-dns
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "network-policy") | nindent 4 }}
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

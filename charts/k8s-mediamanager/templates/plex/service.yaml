@@ -1,0 +1,9 @@
+{{- if .Values.plex.enabled }}
+{{- include "k8s-mediamanager.service" (dict
+  "context" .
+  "component" "plex"
+  "serviceType" .Values.plex.service.type
+  "port" .Values.plex.service.port
+  "nodePort" .Values.plex.service.nodePort
+) }}
+{{- end }}

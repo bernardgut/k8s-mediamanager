@@ -1,0 +1,3 @@
+{{- if .Values.radarr.enabled }}
+{{- include "k8s-mediamanager.arr.deployment" (dict "context" . "component" "radarr" "values" .Values.radarr) }}
+{{- end }}

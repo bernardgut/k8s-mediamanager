@@ -1,0 +1,7 @@
+{{- if and .Values.prowlarr.enabled .Values.prowlarr.metrics.enabled .Values.prowlarr.metrics.serviceMonitor }}
+{{- include "k8s-mediamanager.servicemonitor" (dict
+  "context" .
+  "component" "prowlarr"
+  "extraEndpoints" (list (dict "port" "flaresolverr-metrics" "scheme" "http" "path" "/metrics"))
+) }}
+{{- end }}

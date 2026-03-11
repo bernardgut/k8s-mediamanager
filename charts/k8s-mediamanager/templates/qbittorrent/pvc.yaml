@@ -1,0 +1,3 @@
+{{- if .Values.qbittorrent.enabled }}
+{{- include "k8s-mediamanager.pvc" (dict "context" . "component" "qbittorrent" "persistence" .Values.qbittorrent.persistence) }}
+{{- end }}

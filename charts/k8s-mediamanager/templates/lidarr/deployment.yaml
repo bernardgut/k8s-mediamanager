@@ -1,0 +1,3 @@
+{{- if .Values.lidarr.enabled }}
+{{- include "k8s-mediamanager.arr.deployment" (dict "context" . "component" "lidarr" "values" .Values.lidarr) }}
+{{- end }}

@@ -1,0 +1,3 @@
+{{- if .Values.prowlarr.enabled }}
+{{- include "k8s-mediamanager.arr.configmap" (dict "context" . "component" "prowlarr" "values" .Values.prowlarr) }}
+{{- end }}

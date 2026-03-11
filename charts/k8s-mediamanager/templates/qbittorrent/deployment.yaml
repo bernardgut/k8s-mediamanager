@@ -1,0 +1,126 @@
+{{- if .Values.qbittorrent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-qbittorrent
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "qbittorrent") | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "qbittorrent") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "qbittorrent") | nindent 8 }}
+        app: qbittorrent
+    spec:
+      terminationGracePeriodSeconds: 120
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- include "k8s-mediamanager.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: qbittorrent
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "k8s-mediamanager.commonEnv" . | nindent 12 }}
+            - name: QBITTORRENT__PORT
+              value: "{{ .Values.qbittorrent.service.webui.port }}"
+            - name: QBITTORRENT__BT_PORT
+              value: "{{ .Values.qbittorrent.service.peer.port }}"
+          image: "{{ .Values.qbittorrent.image.repository }}:{{ .Values.qbittorrent.image.tag }}"
+          imagePullPolicy: {{ .Values.qbittorrent.image.pullPolicy }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.qbittorrent.service.webui.port }}
+              path: /
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.qbittorrent.service.webui.port }}
+              path: /
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+          ports:
+            - name: webui
+              containerPort: {{ .Values.qbittorrent.service.webui.port }}
+              protocol: TCP
+            - name: peer
+              containerPort: {{ .Values.qbittorrent.service.peer.port }}
+              protocol: TCP
+            - name: peer-udp
+              containerPort: {{ .Values.qbittorrent.service.peer.port }}
+              protocol: UDP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /downloads
+              subPath: {{ .Values.sharedStorage.subPaths.downloads | quote }}
+            {{- if .Values.qbittorrent.cache.enabled }}
+            - name: cache
+              mountPath: /cache
+            {{- end }}
+            {{- with .Values.qbittorrent.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.qbittorrent.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.qbittorrent.metrics.enabled }}
+        - name: metrics
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          image: "{{ .Values.qbittorrent.metrics.image.repository }}:{{ .Values.qbittorrent.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.qbittorrent.metrics.image.pullPolicy }}
+          env:
+            - name: QBITTORRENT_USERNAME
+              value: {{ .Values.qbittorrent.config.auth.username | quote }}
+            - name: QBITTORRENT_PASSWORD
+              value: {{ .Values.qbittorrent.config.auth.password | quote }}
+            - name: QBITTORRENT_BASE_URL
+              value: "http://localhost:{{ .Values.qbittorrent.service.webui.port }}"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.qbittorrent.metrics.containerPort }}
+          livenessProbe:
+            httpGet:
+              port: metrics
+              path: /
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              port: metrics
+              path: /
+            initialDelaySeconds: 15
+            timeoutSeconds: 10
+        {{- end }}
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ include "k8s-mediamanager.persistenceClaimName" (dict "context" . "component" "qbittorrent" "persistence" .Values.qbittorrent.persistence) }}
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.sharedStorage.existingClaim }}
+        {{- if .Values.qbittorrent.cache.enabled }}
+        - name: cache
+          persistentVolumeClaim:
+            claimName: {{ include "k8s-mediamanager.fullname" . }}-qbittorrent-cache
+        {{- end }}
+        {{- with .Values.qbittorrent.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.qbittorrent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

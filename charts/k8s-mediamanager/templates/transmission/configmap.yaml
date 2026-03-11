@@ -1,0 +1,23 @@
+{{- if .Values.transmission.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-transmission-config
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "transmission") | nindent 4 }}
+data:
+  PGID: "{{ .Values.global.pgid }}"
+  PUID: "{{ .Values.global.puid }}"
+  TZ: "{{ .Values.global.timezone }}"
+  TRANSMISSION__DOWNLOAD_DIR: "/downloads/complete"
+  TRANSMISSION__INCOMPLETE_DIR: "/downloads/transmission/incomplete"
+  TRANSMISSION__PEER_PORT: "{{ .Values.transmission.service.peer.port }}"
+  TRANSMISSION__RPC_AUTHENTICATION_REQUIRED: "{{ .Values.transmission.config.auth.enabled }}"
+  TRANSMISSION__RPC_ENABLED: "true"
+  TRANSMISSION__RPC_BIND_ADDRESS: "::"
+  TRANSMISSION__RPC_PORT: "{{ .Values.transmission.service.rpc.port }}"
+  TRANSMISSION__RPC_URL: "{{ .Values.transmission.ingress.path }}/"
+  TRANSMISSION__RPC_USERNAME: "{{ .Values.transmission.config.auth.username }}"
+  TRANSMISSION__RPC_PASSWORD: "{{ .Values.transmission.config.auth.password }}"
+  TRANSMISSION__UTP_ENABLED: "false"
+{{- end }}

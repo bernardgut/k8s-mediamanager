@@ -1,0 +1,11 @@
+{{- if and .Values.qbittorrent.enabled .Values.qbittorrent.ingress.enabled .Values.gateway.restricted.enabled }}
+{{- include "k8s-mediamanager.httproute" (dict
+  "context" .
+  "component" "qbittorrent"
+  "gatewayName" .Values.gateway.restricted.name
+  "gatewayNamespace" .Values.gateway.restricted.namespace
+  "hostname" .Values.gateway.restricted.hostname
+  "path" .Values.qbittorrent.ingress.path
+  "port" .Values.qbittorrent.service.webui.port
+) }}
+{{- end }}

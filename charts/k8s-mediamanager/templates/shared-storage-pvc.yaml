@@ -1,0 +1,29 @@
+{{- if not .Values.sharedStorage.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-shared-storage
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "shared-storage") | nindent 4 }}
+  {{- with .Values.sharedStorage.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.sharedStorage.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.sharedStorage.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.sharedStorage.size }}
+  {{- if .Values.sharedStorage.storageClassName }}
+  storageClassName: {{ .Values.sharedStorage.storageClassName }}
+  {{- end }}
+  {{- with .Values.sharedStorage.selector }}
+  selector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

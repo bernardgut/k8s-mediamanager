@@ -1,0 +1,3 @@
+{{- if .Values.transmission.enabled }}
+{{- include "k8s-mediamanager.pvc" (dict "context" . "component" "transmission" "persistence" .Values.transmission.persistence) }}
+{{- end }}
