@@ -55,7 +55,7 @@ sharedStorage:
 # Gateway API configuration (replaces legacy Ingress)
 # ──────────────────────────────────────────────────────────────────────────────
 gateway:
-  # Restricted gateway for internal services (arr apps, tautulli, qBittorrent WebUI)
+  # Restricted gateway for internal services (arr apps, qBittorrent WebUI)
   restricted:
     enabled: false
     name: "restricted-home-gateway"
@@ -123,10 +123,12 @@ plex:
   extraVolumeMounts: []
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Tautulli (Plex monitoring — promoted to top-level)
+# Tautulli (Plex monitoring — disabled)
+# Requires CHOWN, SETUID, SETGID, DAC_OVERRIDE caps; runAsNonRoot != true;
+# incompatible with restricted Pod Security Standards.
 # ──────────────────────────────────────────────────────────────────────────────
 tautulli:
-  enabled: true
+  enabled: false
 
   image:
     repository: ghcr.io/tautulli/tautulli
