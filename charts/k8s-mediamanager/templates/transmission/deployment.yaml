@@ -58,6 +58,8 @@ spec:
             - name: media
               mountPath: /downloads
               subPath: {{ .Values.sharedStorage.subPaths.downloads | quote }}
+            - name: tmp
+              mountPath: /tmp
             {{- with .Values.transmission.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -103,6 +105,8 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: {{ include "k8s-mediamanager.persistenceClaimName" (dict "context" . "component" "transmission" "persistence" .Values.transmission.persistence) }}
+        - name: tmp
+          emptyDir: {}
         {{- with .Values.transmission.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

@@ -6,6 +6,9 @@ metadata:
   labels:
     {{- include "k8s-mediamanager.labels" (dict "context" . "component" "qbittorrent") | nindent 4 }}
 spec:
+  {{- if eq (toString .Values.qbittorrent.service.peer.type) "LoadBalancer" }}
+  externalTrafficPolicy: Local
+  {{- end }}
   ipFamilyPolicy: {{ .Values.qbittorrent.service.peer.ipFamilyPolicy }}
   {{- with .Values.qbittorrent.service.peer.ipFamilies }}
   ipFamilies:

@@ -1,0 +1,136 @@
+{{- if .Values.qbittorrent.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-init-qbittorrent
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "qbittorrent") | nindent 4 }}
+data:
+  categories.json: |
+    {
+        "lidarr": {
+            "save_path": ""
+        },
+        "radarr": {
+            "save_path": ""
+        },
+        "tv-sonarr": {
+            "save_path": ""
+        }
+    }
+  qBittorrent.conf: |
+    [Application]
+    FileLogger\Enabled=true
+    FileLogger\Path=/config/qBittorrent/logs
+    FileLogger\Age=1
+    FileLogger\AgeType=1
+    FileLogger\Backup=true
+    FileLogger\DeleteOld=true
+    FileLogger\MaxSizeBytes=66560
+    MemoryWorkingSetLimit=1792
+
+    [BitTorrent]
+    Session\DefaultSavePath=/downloads
+    Session\TempPath=/downloads/temp
+    Session\TempPathEnabled=true
+    Session\TorrentExportDirectory=/downloads/torrents
+    Session\Port={{ .Values.qbittorrent.service.peer.port }}
+    Session\DiskIOType=2
+    Session\DiskIOReadMode=0
+    Session\DiskIOWriteMode=1
+    Session\AsyncIOThreadsCount=8
+    Session\HashingThreadsCount=2
+    Session\DiskQueueSize=67108864
+    Session\CheckingMemUsageSize=256
+    Session\FilePoolSize=5000
+    Session\Preallocation=true
+    Session\SendBufferWatermark=3072
+    Session\SendBufferLowWatermark=1024
+    Session\SendBufferWatermarkFactor=200
+    Session\ConnectionSpeed=250
+    Session\SocketSendBufferSize=1048576
+    Session\SocketReceiveBufferSize=1048576
+    Session\uTPRateLimited=false
+    Session\BTProtocol=Both
+    Session\Encryption=1
+    Session\MaxConnections=2000
+    Session\MaxConnectionsPerTorrent=200
+    Session\MaxUploads=-1
+    Session\MaxUploadsPerTorrent=-1
+    Session\QueueingSystemEnabled=true
+    Session\MaxActiveDownloads=5
+    Session\MaxActiveUploads=2000
+    Session\MaxActiveTorrents=2000
+    Session\MaxActiveCheckingTorrents=1
+    Session\IgnoreSlowTorrentsForQueueing=true
+    Session\GlobalMaxRatio=2
+    Session\GlobalMaxSeedingMinutes=-1
+    Session\ShareLimitAction=Stop
+    Session\SuggestMode=true
+    Session\PieceExtentAffinity=true
+    Session\AnnounceToAllTrackers=true
+    Session\AnonymousModeEnabled=true
+    Session\PerformanceWarning=true
+    Session\GlobalDLSpeedLimit=0
+    Session\GlobalUPSpeedLimit=0
+    Session\AddTorrentStopped=false
+    MergeTrackersEnabled=true
+    ExcludedFileNamesEnabled=true
+    Session\ExcludedFileNames=*.exe, *.lnk, *.url, *.txt, *.jpg, *.bmp, *.jpeg, *.png, *.pif, *.scr, *.bat, *.com
+
+    [Core]
+    AutoDeleteAddedTorrentFile=IfAdded
+
+    [LegalNotice]
+    Accepted=true
+
+    [Meta]
+    MigrationVersion=8
+
+    [Network]
+    PortForwardingEnabled=false
+    Proxy\HostnameLookupEnabled=false
+    Proxy\Profiles\BitTorrent=true
+    Proxy\Profiles\Misc=true
+    Proxy\Profiles\RSS=true
+
+    [Preferences]
+    General\Locale=en
+    WebUI\HostHeaderValidation=false
+    WebUI\LocalHostAuth=true
+    WebUI\UseUPnP=false
+    WebUI\Username={{ .Values.qbittorrent.config.auth.username }}
+
+    [RSS]
+    AutoDownloader\DownloadRepacks=true
+    AutoDownloader\SmartEpisodeFilter=s(\\d+)e(\\d+), (\\d+)x(\\d+), "(\\d{4}[.\\-]\\d{1,2}[.\\-]\\d{1,2})", "(\\d{1,2}[.\\-]\\d{1,2}[.\\-]\\d{4})"
+  init-qbittorrent.sh: |
+    #!/bin/sh
+    set -eu
+    CONF_DIR="/config/qBittorrent"
+    CONF="$CONF_DIR/qBittorrent.conf"
+
+    mkdir -p "$CONF_DIR/logs"
+
+    # Preserve password hash from existing config if present
+    PASS_LINE=""
+    if [ -f "$CONF" ]; then
+      PASS_LINE=$(grep -F 'WebUI\Password_PBKDF2=' "$CONF" || true)
+    fi
+
+    # Write managed config
+    cp /init-qbittorrent/qBittorrent.conf "$CONF"
+    cp /init-qbittorrent/categories.json "$CONF_DIR/categories.json"
+
+    # Restore preserved password hash
+    if [ -n "$PASS_LINE" ]; then
+      printf '%s\n' "$PASS_LINE" >> "$CONF.pw"
+      sed -i "/^WebUI.Username=/ r $CONF.pw" "$CONF"
+      rm -f "$CONF.pw"
+      echo "### Password hash preserved ###"
+    else
+      echo "### No existing password hash found — qBittorrent will generate a temporary password ###"
+    fi
+
+    echo "### qBittorrent config initialized from Helm ConfigMap ###"
+{{- end }}

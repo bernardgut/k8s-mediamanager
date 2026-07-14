@@ -52,14 +52,11 @@ spec:
               protocol: TCP
     {{- end }}
   egress:
+    ## Peer traffic — peers listen on arbitrary ports, so we cannot
+    ## restrict by destination port.  Limited to external (world) only.
     - toEntities:
         - world
-      toPorts:
-        - ports:
-            - port: {{ .Values.qbittorrent.service.peer.port | quote }}
-              protocol: TCP
-            - port: {{ .Values.qbittorrent.service.peer.port | quote }}
-              protocol: UDP
+    ## Tracker announce over HTTPS / HTTP on standard ports
     - toEntities:
         - world
       toPorts:

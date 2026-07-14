@@ -76,6 +76,10 @@ spec:
           volumeMounts:
             - name: plex-config
               mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+            - name: run
+              mountPath: /run
             - name: media
               mountPath: /movies
               subPath: {{ .Values.sharedStorage.subPaths.movies | quote }}
@@ -106,9 +110,15 @@ spec:
         {{- if .Values.plex.transcode.enabled }}
         - name: plex-transcode
           emptyDir:
-            medium: Memory
+            {{- if .Values.plex.transcode.medium }}
+            medium: {{ .Values.plex.transcode.medium }}
+            {{- end }}
             sizeLimit: {{ .Values.plex.transcode.sizeLimit }}
         {{- end }}
+        - name: tmp
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
         {{- with .Values.plex.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

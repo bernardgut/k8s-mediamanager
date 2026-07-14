@@ -135,6 +135,7 @@ data:
       <Port>{{ .values.service.port }}</Port>
       <ApiKey>{{ .values.apiKey }}</ApiKey>
       <InstanceName>{{ .values.instanceName }}</InstanceName>
+      <LogLevel>{{ .values.logLevel | default "info" }}</LogLevel>
     </Config>
   init-{{ .component }}.sh: |
     #!/bin/sh
@@ -386,6 +387,9 @@ spec:
             {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
           env:
             {{- include "k8s-mediamanager.commonEnv" .context | nindent 12 }}
+            {{- with .values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           image: "{{ .values.image.repository }}:{{ .values.image.tag }}"
           imagePullPolicy: {{ .values.image.pullPolicy }}
           livenessProbe:
@@ -407,6 +411,8 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+            - name: tmp
+              mountPath: /tmp
             {{- range .values.mediaSubPaths }}
             - name: media
               mountPath: {{ .mountPath | quote }}
@@ -436,6 +442,8 @@ spec:
           configMap:
             defaultMode: 493
             name: {{ include "k8s-mediamanager.fullname" .context }}-init-{{ .component }}
+        - name: tmp
+          emptyDir: {}
         {{- with .extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

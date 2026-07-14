@@ -55,8 +55,17 @@ spec:
               protocol: TCP
     {{- end }}
     - toFQDNs:
+        - matchName: "themoviedb.org"
         - matchPattern: "*.themoviedb.org"
-        - matchPattern: "api.radarr.video"
+        - matchName: "tmdb.org"
+        - matchPattern: "*.tmdb.org"
+        - matchName: "api.radarr.video"
+        - matchName: "fanart.tv"
+        - matchPattern: "*.fanart.tv"
+        - matchName: "servarr.com"
+        - matchPattern: "*.servarr.com"
+        - matchName: "api.github.com"
+        - matchName: "github.com"
       toPorts:
         - ports:
             - port: "443"

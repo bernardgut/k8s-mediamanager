@@ -96,6 +96,8 @@ spec:
           volumeMounts:
             - name: tautulli-config
               mountPath: /config
+            - name: tmp
+              mountPath: /tmp
           {{- with .Values.tautulli.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -108,6 +110,8 @@ spec:
           configMap:
             defaultMode: 493
             name: {{ include "k8s-mediamanager.fullname" . }}-init-tautulli
+        - name: tmp
+          emptyDir: {}
       {{- with .Values.tautulli.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

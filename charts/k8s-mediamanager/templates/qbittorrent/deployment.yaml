@@ -24,6 +24,25 @@ spec:
       {{- end }}
       securityContext:
         {{- include "k8s-mediamanager.podSecurityContext" . | nindent 8 }}
+      initContainers:
+        - name: config-qbittorrent
+          image: "{{ .Values.global.initImage.repository }}:{{ .Values.global.initImage.tag }}"
+          imagePullPolicy: {{ .Values.global.initImage.pullPolicy }}
+          command: ["/init-qbittorrent/init-qbittorrent.sh"]
+          volumeMounts:
+            - name: init-files
+              mountPath: /init-qbittorrent
+            - name: config
+              mountPath: /config
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
       containers:
         - name: qbittorrent
           securityContext:
@@ -68,6 +87,8 @@ spec:
             - name: cache
               mountPath: /cache
             {{- end }}
+            - name: tmp
+              mountPath: /tmp
             {{- with .Values.qbittorrent.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -105,6 +126,10 @@ spec:
             timeoutSeconds: 10
         {{- end }}
       volumes:
+        - name: init-files
+          configMap:
+            defaultMode: 493
+            name: {{ include "k8s-mediamanager.fullname" . }}-init-qbittorrent
         - name: config
           persistentVolumeClaim:
             claimName: {{ include "k8s-mediamanager.persistenceClaimName" (dict "context" . "component" "qbittorrent" "persistence" .Values.qbittorrent.persistence) }}
@@ -116,6 +141,8 @@ spec:
           persistentVolumeClaim:
             claimName: {{ include "k8s-mediamanager.fullname" . }}-qbittorrent-cache
         {{- end }}
+        - name: tmp
+          emptyDir: {}
         {{- with .Values.qbittorrent.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

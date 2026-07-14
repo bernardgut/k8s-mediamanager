@@ -55,8 +55,18 @@ spec:
               protocol: TCP
     {{- end }}
     - toFQDNs:
+        - matchName: "musicbrainz.org"
         - matchPattern: "*.musicbrainz.org"
-        - matchPattern: "api.lidarr.audio"
+        - matchName: "lidarr.audio"
+        - matchPattern: "*.lidarr.audio"
+        - matchName: "coverartarchive.org"
+        - matchPattern: "*.coverartarchive.org"
+        - matchName: "fanart.tv"
+        - matchPattern: "*.fanart.tv"
+        - matchName: "servarr.com"
+        - matchPattern: "*.servarr.com"
+        - matchName: "api.github.com"
+        - matchName: "github.com"
       toPorts:
         - ports:
             - port: "443"

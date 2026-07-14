@@ -1,17 +1,19 @@
 {{- if .Values.prowlarr.enabled }}
 {{- $flaresolverrContainers := list }}
 {{- if .Values.prowlarr.flaresolverr.enabled }}
-{{- $flaresolverrContainers = list (dict
-  "name" "flaresolverr"
-  "securityContext" (dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")))
-  "image" (printf "%s:%s" .Values.prowlarr.flaresolverr.image.repository .Values.prowlarr.flaresolverr.image.tag)
-  "imagePullPolicy" .Values.prowlarr.flaresolverr.image.pullPolicy
-  "env" (list
+{{- $baseEnv := list
     (dict "name" "TZ" "value" .Values.global.timezone)
     (dict "name" "PORT" "value" (.Values.prowlarr.flaresolverr.port | toString))
     (dict "name" "HOST" "value" "::")
     (dict "name" "PROMETHEUS_ENABLED" "value" (.Values.prowlarr.metrics.enabled | toString))
-  )
+}}
+{{- $flaresolverrEnv := concat $baseEnv (.Values.prowlarr.flaresolverr.extraEnv | default list) }}
+{{- $flaresolverrContainer := dict
+  "name" "flaresolverr"
+  "securityContext" (dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")))
+  "image" (printf "%s:%s" .Values.prowlarr.flaresolverr.image.repository .Values.prowlarr.flaresolverr.image.tag)
+  "imagePullPolicy" .Values.prowlarr.flaresolverr.image.pullPolicy
+  "env" $flaresolverrEnv
   "ports" (list
     (dict "name" "flaresolverr" "containerPort" .Values.prowlarr.flaresolverr.port)
     (dict "name" "metrics-fls" "containerPort" .Values.prowlarr.metrics.flaresolverrMetricsPort)
@@ -22,13 +24,19 @@
     (dict "name" "byparr-cache" "mountPath" "/var/cache/uv")
     (dict "name" "byparr-tmp" "mountPath" "/tmp")
   )
-) }}
+}}
+{{- if .Values.prowlarr.flaresolverr.resources }}
+{{- $_ := set $flaresolverrContainer "resources" .Values.prowlarr.flaresolverr.resources }}
+{{- end }}
+{{- $flaresolverrContainers = list $flaresolverrContainer }}
 {{- end }}
 {{- $extraVolumes := list }}
 {{- if .Values.prowlarr.flaresolverr.enabled }}
+{{- $cacheMedium := .Values.prowlarr.flaresolverr.cache.medium | default "" }}
+{{- $cacheSizeLimit := .Values.prowlarr.flaresolverr.cache.sizeLimit | default "512Mi" }}
 {{- $extraVolumes = list
-  (dict "name" "byparr-cache" "emptyDir" (dict "medium" "Memory" "sizeLimit" "512Mi"))
-  (dict "name" "byparr-tmp" "emptyDir" (dict "medium" "Memory" "sizeLimit" "256Mi"))
+  (dict "name" "byparr-cache" "emptyDir" (dict "medium" $cacheMedium "sizeLimit" $cacheSizeLimit))
+  (dict "name" "byparr-tmp" "emptyDir" (dict))
 }}
 {{- end }}
 {{- $metricsExtraEnv := list (dict "name" "PROWLARR__BACKFILL" "value" "true") }}
@@ -41,4 +49,3 @@
   "metricsExtraEnv" $metricsExtraEnv
 ) }}
 {{- end }}
-

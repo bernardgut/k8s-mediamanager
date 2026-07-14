@@ -17,7 +17,7 @@ global:
   # Init container image used by all *arr services
   initImage:
     repository: docker.io/alpine
-    tag: "3.20"
+    tag: "3.24"
     pullPolicy: IfNotPresent
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -110,13 +110,15 @@ plex:
       memory: "2Gi"
     limits:
       cpu: "4"
-      memory: "16Gi"
+      memory: "4Gi"
 
   nodeSelector: {}
 
-  # Memory-backed transcode volume
+  # Transcode scratch volume (emptyDir)
+  # medium: "Memory" for tmpfs (counts against memory limit), "" for disk-backed
   transcode:
     enabled: true
+    medium: ""
     sizeLimit: "14Gi"
 
   extraVolumes: []
@@ -132,7 +134,7 @@ tautulli:
 
   image:
     repository: ghcr.io/tautulli/tautulli
-    tag: v2.16.0
+    tag: v2.17.2
     pullPolicy: Always
 
   service:
@@ -213,6 +215,7 @@ prowlarr:
       memory: "1Gi"
 
   nodeSelector: {}
+  extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -224,6 +227,12 @@ prowlarr:
       tag: latest
       pullPolicy: Always
     port: 8191
+    extraEnv: []
+    resources: {}
+    cache:
+      # "" for disk-backed emptyDir, "Memory" for tmpfs (counts against pod memory limit)
+      medium: ""
+      sizeLimit: "512Mi"
     nodeSelector: {}
 
   metrics:
@@ -281,6 +290,7 @@ radarr:
       memory: "4Gi"
 
   nodeSelector: {}
+  extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -344,6 +354,7 @@ sonarr:
       memory: "4Gi"
 
   nodeSelector: {}
+  extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -406,6 +417,7 @@ lidarr:
       memory: "4Gi"
 
   nodeSelector: {}
+  extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -546,10 +558,10 @@ qbittorrent:
   resources:
     requests:
       cpu: "500m"
-      memory: "512Mi"
+      memory: "1Gi"
     limits:
       cpu: "4"
-      memory: "24Gi"
+      memory: "4Gi"
 
   nodeSelector: {}
   extraVolumes: []

@@ -11,9 +11,26 @@ metadata:
   labels:
     {{- include "k8s-mediamanager.labels" (dict "context" . "component" "network-policy") | nindent 4 }}
 spec:
+  description: >-
+    Namespace baseline: default deny, allow intra-namespace,
+    kube-apiserver egress, and ingress from gateway proxy.
   endpointSelector: {}
-  ingress: []
-  egress: []
+  ingress:
+    - fromEndpoints:
+        - {}           # same-namespace pods
+    - fromEntities:
+        - ingress      # gateway proxy
+  egress:
+    - toEndpoints:
+        - {}           # same-namespace pods
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "6443"
+              protocol: TCP
 
 ---
 ### ALLOW DNS (all pods)
