@@ -1,7 +1,9 @@
 {{- if and .Values.prowlarr.enabled .Values.prowlarr.metrics.enabled .Values.prowlarr.metrics.serviceMonitor }}
+{{- /* 2026-07-14: dropped the flaresolverr-metrics (:9191) extra endpoint — byparr
+       exposes no Prometheus metrics there, so it scraped-timed-out (TargetDown).
+       The exportarr sidecar (:9090, the "metrics" port) already provides prowlarr metrics. */}}
 {{- include "k8s-mediamanager.servicemonitor" (dict
   "context" .
   "component" "prowlarr"
-  "extraEndpoints" (list (dict "port" "flaresolverr-metrics" "scheme" "http" "path" "/metrics"))
 ) }}
 {{- end }}
