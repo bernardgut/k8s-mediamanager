@@ -2,11 +2,11 @@ apiVersion: v2
 name: k8s-mediamanager
 description: Kubernetes media manager helm chart based on onedr0p rootless images
 type: application
-version: 2.1.0
-appVersion: "2.1.0"
+version: 2.1.1
+appVersion: "2.1.1"
 maintainers:
   - name: bernardgut
-home: https://github.com/sekops-ch/k8s-mediamanager
+home: https://github.com/bernardgut/k8s-mediamanager
 keywords:
 - sonarr
 - radarr

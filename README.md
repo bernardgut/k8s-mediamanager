@@ -8,10 +8,10 @@ _An all-in-one Opiniated Kubernetes media manager helm chart built with security
 
 <div align="center">
 
-![GitHub Repo stars](https://img.shields.io/github/stars/sekops-ch/k8s-mediamanager?style=for-the-badge)
-![GitHub forks](https://img.shields.io/github/forks/sekops-ch/k8s-mediamanager?style=for-the-badge)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/sekops-ch/k8s-mediamanager/release.yaml?style=for-the-badge)
-![GitHub Release](https://img.shields.io/github/v/release/sekops-ch/k8s-mediamanager?style=for-the-badge)
+![GitHub Repo stars](https://img.shields.io/github/stars/bernardgut/k8s-mediamanager?style=for-the-badge)
+![GitHub forks](https://img.shields.io/github/forks/bernardgut/k8s-mediamanager?style=for-the-badge)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/bernardgut/k8s-mediamanager/release.yaml?style=for-the-badge)
+![GitHub Release](https://img.shields.io/github/v/release/bernardgut/k8s-mediamanager?style=for-the-badge)
 </div>
 
 Allows you to create a fully working and complete media manager on #kubernetes, respecting the latest [security best practices](https://github.com/kubernetes-sigs/kubebuilder/discussions/2840): 
@@ -82,7 +82,7 @@ Helm's [documentation](https://helm.sh/docs) to get started.
 
 Once Helm has been set up correctly, add the repo as follows:
   
-    helm repo add k8s-mediamanager https://sekops-ch.github.io/k8s-mediamanager
+    helm repo add k8s-mediamanager https://bernardgut.github.io/k8s-mediamanager
 
 If you had already added this repo earlier, run `helm repo update` to retrieve
 the latest versions of the packages.  You can then run `helm search repo
