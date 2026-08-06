@@ -29,22 +29,38 @@ spec:
             {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
           env:
             {{- include "k8s-mediamanager.commonEnv" . | nindent 12 }}
-            - name: PLEX_CLAIM
+            - name: PLEX_CLAIM_TOKEN
               value: {{ .Values.plex.claim }}
+            {{- range $i, $key := (keys .Values.plex.preferences | sortAlpha) }}
+            - name: PLEX_PREFERENCE_{{ add $i 1 }}
+              value: {{ printf "%s=%s" $key (index $.Values.plex.preferences $key) | quote }}
+            {{- end }}
           image: "{{ .Values.plex.image.repository }}:{{ .Values.plex.image.tag }}"
           imagePullPolicy: {{ .Values.plex.image.pullPolicy }}
-          livenessProbe:
-            httpGet:
-              path: /identity
+          # startup/liveness are TCP on purpose: they assert process-alive only, so
+          # an app-level misconfig (e.g. Secure connections = Required) can degrade
+          # the pod to NotReady but can never CrashLoop it. readiness asserts the
+          # real serving path (plain HTTP /identity — same hop the gateway uses).
+          startupProbe:
+            tcpSocket:
               port: {{ .Values.plex.service.port }}
-            initialDelaySeconds: 15
-            timeoutSeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: {{ .Values.plex.probes.startupFailureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.plex.service.port }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /identity
               port: {{ .Values.plex.service.port }}
-            initialDelaySeconds: 15
-            timeoutSeconds: 10
+              scheme: {{ .Values.plex.probes.readinessScheme | default "HTTP" }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           ports:
             - name: plex-port
               containerPort: {{ .Values.plex.service.port }}

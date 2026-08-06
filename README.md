@@ -212,6 +212,28 @@ kubecetl exec -it deployment/<*-arr> k8s-mediamanager -- sh
 
 you can then edit the config files in `/config` of each container. In the future, we might update the chart to make configuration management of -arr apps easier
 
+## Plex: secure connections
+
+TLS terminates at the Gateway (HTTPRoute); the gateway→pod hop and the kubelet
+probes are plain HTTP. Setting **Settings → Network → Secure connections =
+Required** in the Plex web UI therefore breaks both gateway access and the
+probes (Plex refuses non-TLS from non-loopback sources; `secureConnections="0"`
+persists in `Preferences.xml` on the config PVC).
+
+Since chart 2.3.0 this cannot brick the pod anymore:
+
+- `plex.preferences` values are re-applied on **every boot** via the
+  `home-operations/plex` entrypoint (`PLEX_PREFERENCE_<n>` → `setPref`), pinning
+  `secureConnections: "1"` (Preferred). A UI flip to Required only lasts until
+  the next restart.
+- startup/liveness probes are TCP (process-alive only): an app-level misconfig
+  degrades the pod to NotReady, it is never kill-looped. Readiness stays HTTP
+  `/identity` — the same hop the gateway uses (`plex.probes.readinessScheme`
+  can be set to `HTTPS` for setups that genuinely run Required end-to-end).
+
+Preferred is not a client-facing downgrade: Plex apps and app.plex.tv keep
+end-to-end TLS via `*.plex.direct`, and browser users get TLS at the gateway.
+
 ## Metrics and monitoring
 
 ![image](.github/images/dashboard-2.png)

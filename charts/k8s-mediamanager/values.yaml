@@ -88,6 +88,23 @@ plex:
     port: 32400
     nodePort:    # Only used when type=NodePort
 
+  # startup/liveness are TCP on purpose: they assert process-alive only, so an
+  # app-level misconfig (e.g. Secure connections = Required) can degrade the pod
+  # to NotReady but can NEVER CrashLoop it. readiness asserts the real serving
+  # path (plain HTTP /identity — the same hop the gateway uses).
+  probes:
+    readinessScheme: HTTP        # set HTTPS only if running secureConnections=Required
+    startupFailureThreshold: 60  # 60 x 5s = 5 min for DB migrations on :rolling upgrades
+
+  # Preferences pinned on every boot: the image entrypoint applies each entry as
+  # PLEX_PREFERENCE_<n> (setPref on Preferences.xml) before PMS starts, overriding
+  # whatever was saved via the web UI. secureConnections MUST stay "1" (Preferred)
+  # in this deployment: TLS terminates at the Gateway; the gateway->pod hop and
+  # kubelet probes are plain HTTP. Setting "Required" in the UI bricked the pod on
+  # 2026-08-06. Mapping: 0=Required 1=Preferred 2=Disabled.
+  preferences:
+    secureConnections: "1"
+
   ingress:
     enabled: true
     annotations: {}
