@@ -66,8 +66,15 @@ spec:
         - matchPattern: "*.servarr.com"
         - matchName: "api.github.com"
         - matchName: "github.com"
+        {{- if .Values.radarr.ffprobe.enabled }}
+        - matchName: "dl-cdn.alpinelinux.org"
+        {{- end }}
       toPorts:
         - ports:
             - port: "443"
               protocol: TCP
+            {{- if .Values.radarr.ffprobe.enabled }}
+            - port: "80"
+              protocol: TCP
+            {{- end }}
 {{- end }}

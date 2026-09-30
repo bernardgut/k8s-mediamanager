@@ -243,6 +243,11 @@ capabilities:
       port: metrics
     initialDelaySeconds: 15
     timeoutSeconds: 10
+  # exportarr is a tiny metrics scraper; sensible bounded default so the sidecar
+  # is never the limitless container (p0 require-resources). Override per app via
+  # <component>.metrics.resources.
+  resources:
+    {{- toYaml (.values.metrics.resources | default (dict "requests" (dict "cpu" "10m" "memory" "32Mi") "limits" (dict "cpu" "100m" "memory" "64Mi"))) | nindent 4 }}
 {{- end }}
 
 {{/* ────────────────────────────────────────────────────────────────────────── */}}
@@ -379,6 +384,9 @@ spec:
         {{- include "k8s-mediamanager.podSecurityContext" .context | nindent 8 }}
       initContainers:
         {{- include "k8s-mediamanager.arr.initContainer" (dict "context" .context "component" .component) | nindent 8 }}
+        {{- with .extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       containers:
         - name: {{ .component }}
           securityContext:
