@@ -36,7 +36,7 @@
 {{- $cacheSizeLimit := .Values.prowlarr.flaresolverr.cache.sizeLimit | default "512Mi" }}
 {{- $extraVolumes = list
   (dict "name" "byparr-cache" "emptyDir" (dict "medium" $cacheMedium "sizeLimit" $cacheSizeLimit))
-  (dict "name" "byparr-tmp" "emptyDir" (dict))
+  (dict "name" "byparr-tmp" "emptyDir" (dict "sizeLimit" "1Gi"))
 }}
 {{- end }}
 {{- $metricsExtraEnv := list (dict "name" "PROWLARR__BACKFILL" "value" "true") }}

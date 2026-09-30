@@ -23,6 +23,7 @@ spec:
       {{- end }}
       securityContext:
         fsGroup: {{ .Values.global.pgid }}
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       initContainers:

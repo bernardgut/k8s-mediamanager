@@ -1,3 +1,23 @@
 {{- if .Values.radarr.enabled }}
-{{- include "k8s-mediamanager.arr.deployment" (dict "context" . "component" "radarr" "values" .Values.radarr) }}
+{{- $extraInitContainers := list }}
+{{- $extraVolumes := list }}
+{{- if .Values.radarr.ffprobe.enabled }}
+{{- $extraInitContainers = list (dict
+  "name" "install-ffprobe"
+  "image" (printf "%s:%s" .Values.global.initImage.repository .Values.global.initImage.tag)
+  "imagePullPolicy" .Values.global.initImage.pullPolicy
+  "command" (list "/bin/sh" "-c" "mkdir -p /ffprobe-bin/etc/apk && cp /etc/apk/repositories /ffprobe-bin/etc/apk/ && apk add --no-cache --root /ffprobe-bin --initdb --usermode --keys-dir /etc/apk/keys ffmpeg >/dev/null 2>&1; test -x /ffprobe-bin/usr/bin/ffprobe")
+  "volumeMounts" (list (dict "name" "ffprobe-bin" "mountPath" "/ffprobe-bin"))
+  "securityContext" (dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")))
+  "resources" (dict "requests" (dict "cpu" "10m" "memory" "64Mi") "limits" (dict "cpu" "500m" "memory" "256Mi"))
+) }}
+{{- $extraVolumes = list (dict "name" "ffprobe-bin" "emptyDir" (dict "sizeLimit" "256Mi")) }}
+{{- end }}
+{{- include "k8s-mediamanager.arr.deployment" (dict
+  "context" .
+  "component" "radarr"
+  "values" .Values.radarr
+  "extraInitContainers" $extraInitContainers
+  "extraVolumes" $extraVolumes
+) }}
 {{- end }}

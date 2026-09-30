@@ -75,7 +75,6 @@ plex:
   enabled: true
   # Plex claim token from https://plex.tv/claim
   claim: "CHANGEME"
-  hardwareAcceleration: false
   replicaCount: 1
 
   image:
@@ -311,6 +310,10 @@ radarr:
   extraVolumes: []
   extraVolumeMounts: []
 
+  # Install ffprobe via init container (needed for DetectSample on Alpine-based images)
+  ffprobe:
+    enabled: false
+
   # Media sub-paths this service needs from sharedStorage
   mediaSubPaths:
     - mountPath: /downloads
@@ -374,6 +377,10 @@ sonarr:
   extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
+
+  # Install ffprobe via init container (needed for DetectSample on Alpine-based images)
+  ffprobe:
+    enabled: false
 
   mediaSubPaths:
     - mountPath: /downloads

@@ -154,6 +154,9 @@ runAsNonRoot: true
 runAsUser: {{ .Values.global.puid }}
 runAsGroup: {{ .Values.global.pgid }}
 fsGroup: {{ .Values.global.pgid }}
+{{- /* WARNING: without OnRootMismatch, linstor-csi >=2.12 (CSIDriver fsGroupPolicy
+File) chown-walks the entire RWX media export on every pod start. */}}
+fsGroupChangePolicy: OnRootMismatch
 seccompProfile:
   type: RuntimeDefault
 {{- end }}
