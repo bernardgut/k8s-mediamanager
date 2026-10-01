@@ -14,6 +14,10 @@ spec:
       {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "qbittorrent") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        # qBittorrent.conf is applied by the init container at pod start only;
+        # without this checksum a config-only upgrade never restarts the pod.
+        checksum/init-config: {{ include (print $.Template.BasePath "/qbittorrent/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "qbittorrent") | nindent 8 }}
         app: qbittorrent
