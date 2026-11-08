@@ -1,6 +1,6 @@
 {{- if .Values.sonarr.enabled }}
 ---
-### SONARR — ingress from gateway + prowlarr, egress to qbittorrent + metadata APIs
+### SONARR — ingress from gateway + prowlarr + cleanuparr, egress to qbittorrent + metadata APIs
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -22,6 +22,15 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app: prowlarr
+      toPorts:
+        - ports:
+            - port: {{ .Values.sonarr.service.port | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if .Values.cleanuparr.enabled }}
+    - fromEndpoints:
+        - matchLabels:
+            app: cleanuparr
       toPorts:
         - ports:
             - port: {{ .Values.sonarr.service.port | quote }}
@@ -60,6 +69,7 @@ spec:
         - matchName: "thetvdb.com"
         - matchPattern: "*.thetvdb.com"
         - matchName: "services.sonarr.tv"
+        - matchName: "thexem.info"  # XEM scene-numbering maps
         - matchName: "fanart.tv"
         - matchPattern: "*.fanart.tv"
         - matchName: "servarr.com"

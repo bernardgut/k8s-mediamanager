@@ -1,6 +1,6 @@
 {{- if .Values.lidarr.enabled }}
 ---
-### LIDARR — ingress from gateway + prowlarr, egress to qbittorrent + metadata APIs
+### LIDARR — ingress from gateway + prowlarr + cleanuparr, egress to qbittorrent + metadata APIs
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -22,6 +22,15 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app: prowlarr
+      toPorts:
+        - ports:
+            - port: {{ .Values.lidarr.service.port | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if .Values.cleanuparr.enabled }}
+    - fromEndpoints:
+        - matchLabels:
+            app: cleanuparr
       toPorts:
         - ports:
             - port: {{ .Values.lidarr.service.port | quote }}

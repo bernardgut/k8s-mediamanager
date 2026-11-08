@@ -2,7 +2,7 @@ apiVersion: v2
 name: k8s-mediamanager
 description: Kubernetes media manager helm chart based on onedr0p rootless images
 type: application
-version: 2.5.3
+version: 2.8.0
 appVersion: "2.2.0"
 maintainers:
   - name: bernardgut

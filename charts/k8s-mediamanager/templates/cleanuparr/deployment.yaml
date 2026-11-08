@@ -1,0 +1,154 @@
+{{- if .Values.cleanuparr.enabled }}
+{{- $basePath := trimSuffix "/" .Values.cleanuparr.ingress.path }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-cleanuparr
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "cleanuparr") | nindent 4 }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "k8s-mediamanager.serviceSelectorLabels" (dict "context" . "component" "cleanuparr") | nindent 6 }}
+  template:
+    metadata:
+      {{- if include "k8s-mediamanager.cleanuparr.configEnabled" . }}
+      {{- /* Settings are applied by init containers at pod start only; without these a settings change
+      never restarts the pod. They hash the content, not the rendered objects, so a chart bump alone does not. */}}
+      annotations:
+        checksum/cleanuparr-config-scripts: {{ printf "%s\n%s" (.Files.Get "files/cleanuparr/migrate.sh") (.Files.Get "files/cleanuparr/apply_config.py") | sha256sum }}
+        checksum/cleanuparr-config: {{ include "k8s-mediamanager.cleanuparr.desiredState" . | sha256sum }}
+      {{- end }}
+      labels:
+        {{- include "k8s-mediamanager.serviceSelectorLabels" (dict "context" . "component" "cleanuparr") | nindent 8 }}
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "k8s-mediamanager.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- include "k8s-mediamanager.podSecurityContext" . | nindent 8 }}
+      {{- if include "k8s-mediamanager.cleanuparr.configEnabled" . }}
+      initContainers:
+        {{- /* Runs the app itself in migrate-only mode, so it needs the app's resources. */}}
+        - name: cleanuparr-migrate
+          image: "{{ .Values.cleanuparr.image.repository }}:{{ .Values.cleanuparr.image.tag }}"
+          imagePullPolicy: {{ .Values.cleanuparr.image.pullPolicy }}
+          command: ["/bin/bash", "/cleanuparr-config/migrate.sh"]
+          env:
+            {{- include "k8s-mediamanager.commonEnv" . | nindent 12 }}
+            - name: CLEANUPARR_IMAGE_TAG
+              value: {{ .Values.cleanuparr.image.tag | quote }}
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+            - name: config-scripts
+              mountPath: /cleanuparr-config
+              readOnly: true
+          {{- with .Values.cleanuparr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: cleanuparr-config
+          image: "{{ .Values.cleanuparr.image.repository }}:{{ .Values.cleanuparr.image.tag }}"
+          imagePullPolicy: {{ .Values.cleanuparr.image.pullPolicy }}
+          command: ["python3", "-I", "-B", "/cleanuparr-config/apply_config.py", "reconcile", "--config-dir", "/config", "--desired", "/cleanuparr-desired/desired-state.json"]
+          env:
+            - name: TZ
+              value: "{{ .Values.global.timezone }}"
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+            - name: config-scripts
+              mountPath: /cleanuparr-config
+              readOnly: true
+            - name: config-desired
+              mountPath: /cleanuparr-desired
+              readOnly: true
+          {{- with .Values.cleanuparr.config.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
+      containers:
+        - name: cleanuparr
+          securityContext:
+            {{- include "k8s-mediamanager.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "k8s-mediamanager.commonEnv" . | nindent 12 }}
+            - name: PORT
+              value: {{ .Values.cleanuparr.service.port | quote }}
+            - name: BASE_PATH
+              value: {{ $basePath | quote }}
+            {{- with .Values.cleanuparr.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          image: "{{ .Values.cleanuparr.image.repository }}:{{ .Values.cleanuparr.image.tag }}"
+          imagePullPolicy: {{ .Values.cleanuparr.image.pullPolicy }}
+          {{- /* Health endpoints sit under BASE_PATH. Readiness uses /health: /health/ready fails while
+          a download client is unhealthy, which would drop the only route to the UI that fixes it. */}}
+          startupProbe:
+            httpGet:
+              path: {{ $basePath }}/health
+              port: {{ .Values.cleanuparr.service.port }}
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: {{ $basePath }}/health
+              port: {{ .Values.cleanuparr.service.port }}
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ $basePath }}/health
+              port: {{ .Values.cleanuparr.service.port }}
+            periodSeconds: 30
+            timeoutSeconds: 10
+          ports:
+            - name: cleanuparr-port
+              containerPort: {{ .Values.cleanuparr.service.port }}
+              protocol: TCP
+          {{- /* Non-root runs skip the image's chown/gosu step; the app writes only to /config and /tmp. */}}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+          {{- with .Values.cleanuparr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ include "k8s-mediamanager.persistenceClaimName" (dict "context" . "component" "cleanuparr" "persistence" .Values.cleanuparr.persistence) }}
+        - name: tmp
+          emptyDir: {}
+        {{- if include "k8s-mediamanager.cleanuparr.configEnabled" . }}
+        {{- /* 292 = 0444, 288 = 0440: the desired state stays readable only through fsGroup. */}}
+        - name: config-scripts
+          configMap:
+            name: {{ include "k8s-mediamanager.fullname" . }}-cleanuparr-config-scripts
+            defaultMode: 292
+        - name: config-desired
+          secret:
+            secretName: {{ include "k8s-mediamanager.fullname" . }}-cleanuparr-config
+            defaultMode: 288
+        {{- end }}
+      {{- with .Values.cleanuparr.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

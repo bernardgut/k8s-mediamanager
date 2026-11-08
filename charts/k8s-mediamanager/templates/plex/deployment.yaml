@@ -99,12 +99,21 @@ spec:
             - name: media
               mountPath: /movies
               subPath: {{ .Values.sharedStorage.subPaths.movies | quote }}
+              {{- if .Values.plex.mediaReadOnly }}
+              readOnly: true
+              {{- end }}
             - name: media
               mountPath: /tv
               subPath: {{ .Values.sharedStorage.subPaths.tv | quote }}
+              {{- if .Values.plex.mediaReadOnly }}
+              readOnly: true
+              {{- end }}
             - name: media
               mountPath: /music
               subPath: {{ .Values.sharedStorage.subPaths.music | quote }}
+              {{- if .Values.plex.mediaReadOnly }}
+              readOnly: true
+              {{- end }}
             {{- if .Values.plex.transcode.enabled }}
             - name: plex-transcode
               mountPath: /transcode

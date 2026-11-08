@@ -1,4 +1,13 @@
 {{- if .Values.qbittorrent.enabled }}
+{{- /* Category names must match the download-client categories set in each *arr app. */}}
+{{- $categories := list }}
+{{- if .Values.radarr.enabled }}{{ $categories = concat $categories (list "radarr" "radarr-imported") }}{{ end }}
+{{- if .Values.sonarr.enabled }}{{ $categories = concat $categories (list "tv-sonarr" "tv-sonarr-imported") }}{{ end }}
+{{- if .Values.lidarr.enabled }}{{ $categories = append $categories "lidarr" }}{{ end }}
+{{- $categoriesJson := dict }}
+{{- range $categories }}{{ $_ := set $categoriesJson . (dict "save_path" "") }}{{ end }}
+{{- $shareLimits := .Values.qbittorrent.config.shareLimits }}
+{{- $peerDiscovery := .Values.qbittorrent.config.peerDiscovery }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,17 +16,7 @@ metadata:
     {{- include "k8s-mediamanager.labels" (dict "context" . "component" "qbittorrent") | nindent 4 }}
 data:
   categories.json: |
-    {
-        "lidarr": {
-            "save_path": ""
-        },
-        "radarr": {
-            "save_path": ""
-        },
-        "tv-sonarr": {
-            "save_path": ""
-        }
-    }
+    {{- toPrettyJson $categoriesJson | nindent 4 }}
   qBittorrent.conf: |
     [Application]
     FileLogger\Enabled=true
@@ -33,11 +32,11 @@ data:
     Session\DefaultSavePath=/downloads
     Session\TempPath=/downloads/temp
     Session\TempPathEnabled=true
-    Session\TorrentExportDirectory=/downloads/torrents
     Session\Port={{ .Values.qbittorrent.service.peer.port }}
-    Session\DiskIOType=2
-    Session\DiskIOReadMode=0
-    Session\DiskIOWriteMode=1
+    {{- /* WARNING: enum settings take the enum NAME; a number is silently ignored and the default applies. */}}
+    Session\DiskIOType=Default
+    Session\DiskIOReadMode=EnableOSCache
+    Session\DiskIOWriteMode=EnableOSCache
     Session\AsyncIOThreadsCount=8
     Session\HashingThreadsCount=2
     Session\DiskQueueSize=67108864
@@ -63,16 +62,17 @@ data:
     Session\MaxActiveTorrents=20
     Session\MaxActiveCheckingTorrents=1
     Session\IgnoreSlowTorrentsForQueueing=true
-    Session\GlobalMaxRatio=2
-    Session\GlobalMaxSeedingMinutes=-1
+    Session\GlobalMaxRatio={{ $shareLimits.ratio }}
+    Session\GlobalMaxSeedingMinutes={{ int $shareLimits.seedingMinutes }}
+    Session\GlobalMaxInactiveSeedingMinutes={{ int $shareLimits.inactiveSeedingMinutes }}
     Session\ShareLimitAction=Stop
     Session\SuggestMode=true
     Session\PieceExtentAffinity=true
     Session\AnnounceToAllTrackers=false
     Session\AnnounceToAllTiers=false
-    Session\DHT=false
-    Session\PeX=false
-    Session\LSD=false
+    Session\DHTEnabled={{ $peerDiscovery.dht }}
+    Session\PeXEnabled={{ $peerDiscovery.pex }}
+    Session\LSDEnabled={{ $peerDiscovery.lsd }}
     Session\AnonymousModeEnabled=true
     Session\PerformanceWarning=true
     Session\GlobalDLSpeedLimit=0

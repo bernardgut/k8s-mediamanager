@@ -1,0 +1,78 @@
+suite: shared media volume mounts
+templates:
+  - templates/sonarr/deployment.yaml
+  - templates/radarr/deployment.yaml
+  - templates/plex/deployment.yaml
+tests:
+  - it: keeps the split sub-path mounts by default
+    template: templates/sonarr/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - {name: config, mountPath: /config}
+            - {name: tmp, mountPath: /tmp}
+            - {name: media, mountPath: /downloads, subPath: downloads}
+            - {name: media, mountPath: /tv, subPath: media/tv}
+  - it: adds the whole volume at dataMountPath next to the sub-path mounts
+    template: templates/radarr/deployment.yaml
+    set:
+      radarr.dataMountPath: /data
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: media, mountPath: /data}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: media, mountPath: /movies, subPath: media/movies}
+  - it: mounts only the whole volume once mediaSubPaths is emptied
+    template: templates/sonarr/deployment.yaml
+    set:
+      sonarr.dataMountPath: /data
+      sonarr.mediaSubPaths: []
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - {name: config, mountPath: /config}
+            - {name: tmp, mountPath: /tmp}
+            - {name: media, mountPath: /data}
+  - it: leaves the Plex media mounts writable by default
+    template: templates/plex/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: media, mountPath: /tv, subPath: media/tv, readOnly: true}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: media, mountPath: /tv, subPath: media/tv}
+  - it: mounts the Plex libraries read-only with mediaReadOnly
+    template: templates/plex/deployment.yaml
+    set:
+      plex.mediaReadOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: media, mountPath: /movies, subPath: media/movies, readOnly: true}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: media, mountPath: /tv, subPath: media/tv, readOnly: true}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: media, mountPath: /music, subPath: media/music, readOnly: true}
+  - it: refuses a dataMountPath that repeats a sub-path mount
+    template: templates/sonarr/deployment.yaml
+    set:
+      sonarr.dataMountPath: /tv
+    asserts:
+      - failedTemplate:
+          errorMessage: sonarr.dataMountPath /tv overlaps mediaSubPaths mountPath /tv
+  - it: refuses a sub-path mount inside the data mount
+    template: templates/sonarr/deployment.yaml
+    set:
+      sonarr.dataMountPath: /data/
+      sonarr.mediaSubPaths:
+        - {mountPath: /data/downloads, subPath: downloads}
+    asserts:
+      - failedTemplate:
+          errorMessage: sonarr.dataMountPath /data overlaps mediaSubPaths mountPath /data/downloads

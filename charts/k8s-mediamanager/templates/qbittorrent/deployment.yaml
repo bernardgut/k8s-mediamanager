@@ -17,7 +17,8 @@ spec:
       annotations:
         # qBittorrent.conf is applied by the init container at pod start only;
         # without this checksum a config-only upgrade never restarts the pod.
-        checksum/init-config: {{ include (print $.Template.BasePath "/qbittorrent/configmap.yaml") . | sha256sum }}
+        # Only .data is hashed, so a chart version bump alone does not restart it.
+        checksum/init-config: {{ (include (print $.Template.BasePath "/qbittorrent/configmap.yaml") . | fromYaml).data | toJson | sha256sum }}
       labels:
         {{- include "k8s-mediamanager.selectorLabels" (dict "context" . "component" "qbittorrent") | nindent 8 }}
         app: qbittorrent

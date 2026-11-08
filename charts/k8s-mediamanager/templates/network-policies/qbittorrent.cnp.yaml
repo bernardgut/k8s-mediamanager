@@ -1,6 +1,6 @@
 {{- if .Values.qbittorrent.enabled }}
 ---
-### QBITTORRENT — ingress from gateway + arr apps, egress to internet (peers + trackers)
+### QBITTORRENT — ingress from gateway + arr apps + cleanuparr, egress to internet (peers + trackers)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -30,6 +30,10 @@ spec:
         {{- if .Values.lidarr.enabled }}
         - matchLabels:
             app: lidarr
+        {{- end }}
+        {{- if .Values.cleanuparr.enabled }}
+        - matchLabels:
+            app: cleanuparr
         {{- end }}
       toPorts:
         - ports:

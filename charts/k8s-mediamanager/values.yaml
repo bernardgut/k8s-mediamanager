@@ -137,6 +137,9 @@ plex:
     medium: ""
     sizeLimit: "14Gi"
 
+  # Read-only /tv, /movies and /music: deleting media from the Plex UI then fails.
+  mediaReadOnly: false
+
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -234,6 +237,8 @@ prowlarr:
   extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
+  # Above the .NET host shutdown timeout (up to 30 s), so the app exits before SIGKILL.
+  terminationGracePeriodSeconds: 120
 
   # Byparr/FlareSolverr sidecar for CAPTCHA solving
   flaresolverr:
@@ -309,17 +314,22 @@ radarr:
   extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
+  # Above the .NET host shutdown timeout (up to 30 s), so the app exits before SIGKILL.
+  terminationGracePeriodSeconds: 120
 
   # Install ffprobe via init container (needed for DetectSample on Alpine-based images)
   ffprobe:
     enabled: false
 
-  # Media sub-paths this service needs from sharedStorage
+  # sharedStorage sub-paths, one mount each; imports from one into another are never hardlinks.
   mediaSubPaths:
     - mountPath: /downloads
       subPath: downloads
     - mountPath: /movies
       subPath: media/movies
+  # Whole sharedStorage volume at this path (e.g. /data); imports within it hardlink instead of copy. Empty: off.
+  # WARNING: while mediaSubPaths also mounts these folders, an app-side file move deletes the files (README).
+  dataMountPath: ""
 
   metrics:
     enabled: true
@@ -377,16 +387,22 @@ sonarr:
   extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
+  # Above the .NET host shutdown timeout (up to 30 s), so the app exits before SIGKILL.
+  terminationGracePeriodSeconds: 120
 
   # Install ffprobe via init container (needed for DetectSample on Alpine-based images)
   ffprobe:
     enabled: false
 
+  # sharedStorage sub-paths, one mount each; imports from one into another are never hardlinks.
   mediaSubPaths:
     - mountPath: /downloads
       subPath: downloads
     - mountPath: /tv
       subPath: media/tv
+  # Whole sharedStorage volume at this path (e.g. /data); imports within it hardlink instead of copy. Empty: off.
+  # WARNING: while mediaSubPaths also mounts these folders, an app-side file move deletes the files (README).
+  dataMountPath: ""
 
   metrics:
     enabled: true
@@ -444,12 +460,18 @@ lidarr:
   extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
+  # Above the .NET host shutdown timeout (up to 30 s), so the app exits before SIGKILL.
+  terminationGracePeriodSeconds: 120
 
+  # sharedStorage sub-paths, one mount each; imports from one into another are never hardlinks.
   mediaSubPaths:
     - mountPath: /downloads
       subPath: downloads
     - mountPath: /music
       subPath: media/music
+  # Whole sharedStorage volume at this path (e.g. /data); imports within it hardlink instead of copy. Empty: off.
+  # WARNING: while mediaSubPaths also mounts these folders, an app-side file move deletes the files (README).
+  dataMountPath: ""
 
   metrics:
     enabled: true
@@ -564,6 +586,18 @@ qbittorrent:
     auth:
       username: "admin"
       password: "changeme1234"
+    # Peer sources beyond trackers (qBittorrent defaults). Off means fewer unsolicited
+    # connections, but trackerless magnets may never fetch their metadata.
+    peerDiscovery:
+      dht: true
+      pex: true
+      lsd: true
+    # The first limit reached stops the torrent; -1 disables a limit. Queued torrents
+    # accrue no seeding time, so only inactiveSeedingMinutes stops them.
+    shareLimits:
+      ratio: 2
+      seedingMinutes: 4320
+      inactiveSeedingMinutes: 1440
 
   persistence:
     existingClaim: ""
@@ -600,3 +634,209 @@ qbittorrent:
     serviceMonitor: true
     containerPort: 17871
     port: 9091
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Cleanuparr (queue cleaner / malware blocker for the *arr apps)
+# Its settings live in its own database on the config PVC; cleanuparr.config writes them from values.
+# ──────────────────────────────────────────────────────────────────────────────
+cleanuparr:
+  enabled: false
+
+  image:
+    repository: ghcr.io/cleanuparr/cleanuparr
+    # A minor bump is a breaking release (may block rollback): back up /config first.
+    tag: "2.10.8"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 11011
+    nodePort:
+
+  # Restricted-gateway route; the path is also the app's BASE_PATH.
+  ingress:
+    enabled: true
+    path: /cleanuparr
+
+  persistence:
+    existingClaim: ""
+    size: 1Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations:
+      helm.sh/resource-policy: keep
+
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "192Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  nodeSelector: {}
+  extraEnv: []
+
+  networkPolicy:
+    # Cilium toFQDNs selectors reachable on 443 (e.g. a remote blocklist host);
+    # empty allows in-cluster *arr/qBittorrent APIs only.
+    egressFQDNs: []
+
+  # Settings written into Cleanuparr's database by init containers at every pod start;
+  # see README "Cleanuparr settings as code".
+  config:
+    # Off leaves every setting to the UI.
+    enabled: false
+    # plan logs the drift without writing it.
+    mode: apply
+    # Base of Cleanuparr's links to the apps; empty uses the restricted gateway's hostname (if enabled) for apps with an ingress.
+    externalBaseUrl: ""
+    # Settings init container; the migrate init container runs the app and uses cleanuparr.resources.
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+
+    # Admin account, created only when users.db has none; afterwards only apiKey is enforced.
+    auth:
+      username: ""
+      # bcrypt: htpasswd -nbBC 12 "" '<password>' | tr -d ':\n'
+      passwordHash: ""
+      # 64 lowercase hex chars (openssl rand -hex 32), enforced at every start; empty keeps the app's key.
+      apiKey: ""
+
+    general:
+      # On (upstream: off) so a new setup only logs what it would remove; off purges dry-run strikes and events.
+      dryRun: true
+      # The chart's network policy blocks the GitHub release check.
+      statusCheckEnabled: false
+      displaySupportBanner: true
+      historyRetentionDays: 365
+      strikeInactivityWindowHours: 24
+      ignoredDownloads: []
+      connectivityCheckEnabled: false
+      connectivityCheckUrls: []
+      http:
+        maxRetries: 0
+        timeout: 100
+        # enabled | disabledforlocaladdresses | disabled
+        certificateValidation: enabled
+        sendUserAgent: false
+      log:
+        # verbose | debug | information | warning | error | fatal
+        level: information
+        rollingSizeMB: 10
+        retainedFileCount: 5
+        timeLimitHours: 24
+        archiveEnabled: true
+        archiveRetainedCount: 60
+        archiveTimeLimitHours: 720
+      auth:
+        disableAuthForLocalAddresses: false
+        trustForwardedHeaders: false
+        # IPs or CIDRs
+        trustedNetworks: []
+
+    queueCleaner:
+      enabled: false
+      # Quartz cron, seconds first; must fire every 30 s to 5 h, every day (6 h breaks on DST nights).
+      cronExpression: "0 0/5 * * * ?"
+      # UI only: the raw cron editor; the schedule picker shows only the crons it generates.
+      useAdvancedScheduling: false
+      ignoredDownloads: []
+      processNoContentId: false
+      # 0 disables; otherwise >= 3.
+      downloadingMetadataMaxStrikes: 0
+      failedImport:
+        # 0 disables; otherwise >= 3.
+        maxStrikes: 0
+        ignorePrivate: false
+        deletePrivate: false
+        skipIfNotFoundInClient: true
+        # include | exclude
+        patternMode: include
+        patterns: []
+        changeCategory: false
+        forceImport: false
+        forceImportMaxTries: 3
+      # Matched by name (case-insensitive); rules not listed are deleted. Item fields: README.
+      stallRules: []
+      slowRules: []
+
+    malwareBlocker:
+      enabled: false
+      # This job has no 30 s floor.
+      cronExpression: "0/5 * * * * ?"
+      useAdvancedScheduling: false
+      ignorePrivate: false
+      deletePrivate: false
+      processNoContentId: false
+      deleteIfAnyFileBlocked: false
+      ignoredDownloads: []
+      # blocklistType blacklist | whitelist; blocklistPath is an https URL (needs egressFQDNs, port 443) or a file under /config.
+      sonarr: {enabled: false, blocklistType: blacklist, blocklistPath: ""}
+      radarr: {enabled: false, blocklistType: blacklist, blocklistPath: ""}
+      lidarr: {enabled: false, blocklistType: blacklist, blocklistPath: ""}
+      readarr: {enabled: false, blocklistType: blacklist, blocklistPath: ""}
+      whisparr: {enabled: false, blocklistType: blacklist, blocklistPath: ""}
+      sportarr: {enabled: false, blocklistType: blacklist, blocklistPath: ""}
+      lazyLibrarian: {enabled: false, blocklistType: blacklist, blocklistPath: ""}
+
+    downloadCleaner:
+      enabled: false
+      cronExpression: "0 0 * * * ?"
+      useAdvancedScheduling: false
+      ignoredDownloads: []
+
+    blacklistSync:
+      enabled: false
+      blacklistPath: ""
+
+    seeker:
+      # Gates every search, incl. the replacement after a removal (removals skip the *arr's own search).
+      searchEnabled: true
+      # Minutes: 2,3,4,5,6,10,12,15,20,30,60,120,180,240 (the UI's 360 fails on DST nights).
+      searchInterval: 10
+      # Missing-item and upgrade searches over the instances with seeker.enabled.
+      proactiveSearchEnabled: false
+      # balancedweighted | oldestsearchfirst | oldestsearchweighted | newestfirst | newestweighted | random
+      selectionStrategy: balancedweighted
+      useRoundRobin: true
+      postReleaseGraceHours: 6
+
+    # Instances are matched by name per type; instances not listed are deleted. fromChart: true derives
+    # url, apiKey and externalUrl from this chart's sonarr/radarr/lidarr. Item fields: README.
+    arr:
+      sonarr:
+        # -1 uses queueCleaner.failedImport.maxStrikes; 0 turns failed-import strikes off.
+        failedImportMaxStrikes: -1
+        instances: []
+      radarr:
+        failedImportMaxStrikes: -1
+        instances: []
+      lidarr:
+        failedImportMaxStrikes: -1
+        instances: []
+      readarr:
+        failedImportMaxStrikes: -1
+        instances: []
+      whisparr:
+        failedImportMaxStrikes: -1
+        instances: []
+      sportarr:
+        failedImportMaxStrikes: -1
+        instances: []
+      lazyLibrarian:
+        failedImportMaxStrikes: -1
+        instances: []
+
+    # Matched by name; clients not listed are deleted with their cleaner rules. fromChart: qbittorrent
+    # derives type, host, credentials and externalUrl from this chart. Item fields: README.
+    downloadClients: []
+
+    # Matched by name; providers not listed are deleted. Item fields: README.
+    notifications: []

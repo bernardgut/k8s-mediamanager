@@ -1,0 +1,3 @@
+{{- if .Values.cleanuparr.enabled }}
+{{- include "k8s-mediamanager.pvc" (dict "context" . "component" "cleanuparr" "persistence" .Values.cleanuparr.persistence) }}
+{{- end }}

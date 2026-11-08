@@ -1,0 +1,9 @@
+{{- if .Values.cleanuparr.enabled }}
+{{- include "k8s-mediamanager.service" (dict
+  "context" .
+  "component" "cleanuparr"
+  "serviceType" .Values.cleanuparr.service.type
+  "port" .Values.cleanuparr.service.port
+  "nodePort" .Values.cleanuparr.service.nodePort
+) }}
+{{- end }}

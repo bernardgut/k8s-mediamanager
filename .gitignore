@@ -1,0 +1,3 @@
+# Python bytecode from running tests/cleanuparr
+__pycache__/
+*.pyc

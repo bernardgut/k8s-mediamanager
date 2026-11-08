@@ -1,0 +1,13 @@
+{{- if include "k8s-mediamanager.cleanuparr.configEnabled" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "k8s-mediamanager.fullname" . }}-cleanuparr-config-scripts
+  labels:
+    {{- include "k8s-mediamanager.labels" (dict "context" . "component" "cleanuparr") | nindent 4 }}
+data:
+  migrate.sh: |
+    {{- .Files.Get "files/cleanuparr/migrate.sh" | nindent 4 }}
+  apply_config.py: |
+    {{- .Files.Get "files/cleanuparr/apply_config.py" | nindent 4 }}
+{{- end }}
